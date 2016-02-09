@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>A simple WinRM-based ActionHandler for Windows nodes</title>
+	<meta name="author" content="Marcus Klemm"/>
+	<meta name="date" content="December 7, 2015"/>
+	<link type="text/css" rel="stylesheet" href="https://tabtab.co/css/tabtab.css"/>
+	<link type="text/css" rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700|Source+Code+Pro|Handlee"/>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/highlight.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/languages/yaml.min.js"></script>
+<script type="text/javascript">hljs.initHighlightingOnLoad();</script>
+<script type="text/javascript">window.addEventListener("load", function () { document.body.className = "markdown-view"; }, false);</script>
+	<link type="text/css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/styles/github.min.css"/>
+<style>body { margin: 1cm !important; }</style>
+</head>
+<body>
+
+<h1 id="simpleactionhandlertoexecutecommandsonwindowsmachinesusingwinrm">Simple ActionHandler to execute commands on Windows machines using WinRM</h1>
+
+<p>In this example I will show you how to configure the Generic ActionHandler to access Microsoft Windows machines using the WinRM protocol. To achieve this, I will utilize a WinRM client written in the Go language. It can be found here: <a href="https://github.com/masterzen/winrm/tree/master/winrm">github.com/masterzen/winrm/tree/master/winrm</a></p>
+
+<p>Parts of this guide are about building everything from scratch. The winrm and winrm-powershell binaries are also included in the downloads folder, if you don&#8217;t want to build them on your own, just skip this step.</p>
+
+<h2 id="disclaimer">Disclaimer</h2>
+
+<p>Do not use this in production! The client I use allows only unencrypted traffic and I will put the password in the AutoPilot config file. This is only a quick hack to use in a test lab.</p>
+
+<h2 id="buildingthewinrmclientandthewinrm-powershellwrapper">Building the winrm client and the winrm-powershell wrapper</h2>
+
+<p>If you have an all-in-one installation of AutoPilot, log into the AutoPilot machine. In a multi-node-setup, log into the engine node.</p>
+
+<p>First, install the EPEL repository and git: <code>sudo yum install epel-release git</code></p>
+
+<p>Then, install the Go compiler: <code>sudo yum install golang</code></p>
+
+<p>Create a directory for the Go environment: <code>mkdir golang</code></p>
+
+<p>Setup the GOPATH environment variable and add its bin subdirectory to your path:</p>
+
+<pre><code class="nohighlight">export GOPATH=~/golang
+export PATH=$PATH:${GOPATH//://bin:}/bin
+</code></pre>
+
+<p>Download and build the &#8220;gox&#8221; Go cross-compiler: <code>go get github.com/mitchellh/gox</code></p>
+
+<p>Download and build the winrm client: <code>go get github.com/masterzen/winrm</code></p>
+
+<p>Download and build the winrm-powershell wrapper: <code>go get github.com/mefellows/winrm-powershell</code></p>
+
+<p>Finally, copy the winrm and winrm-powershell binaries to your <code>/usr/bin</code> directory (or somewhere else in the user arago&#8217;s <code>$PATH</code>):</p>
+
+<pre><code class="nohighlight">sudo cp -ax golang/bin/winrm /usr/bin/
+sudo cp -ax golang/bin/winrm-powershell /usr/bin/
+</code></pre>
+
+<h2 id="preparingthetargetsystems">Preparing the target system(s)</h2>
+
+<p>On the target Windows machines, open a cmd.exe command line using &#8220;Run as Administrator&#8221; and execute the following commands:</p>
+
+<pre><code class="nohighlight">winrm quickconfig
+winrm set winrm/config/service/Auth @{Basic=&quot;true&quot;}
+winrm set winrm/config/service @{AllowUnencrypted=&quot;true&quot;}
+winrm set winrm/config/winrs @{MaxMemoryPerShellMB=&quot;1024&quot;}
+</code></pre>
+
+<p>Your network connection has to be a &#8220;work&#8221; network.</p>
+
+<h2 id="testingtheremoteaccess">Testing the remote access</h2>
+
+<p>On the AutoPilot machine, the next command should succeed and you should get a listing of the Windows user’s home directory:</p>
+
+<pre><code class="nohighlight">winrm -hostname &lt;dns_name_of_windows_machine&gt; -username &lt;a_local_windows_user&gt; -password &lt;password&gt; dir
+</code></pre>
+
+<p>To test the winrm-powershell wrapper, execute the following:</p>
+
+<pre><code class="nohighlight">winrm-powershell -hostname &lt;dns_name_of_windows_machine&gt; -username &lt;a_local_windows_user&gt; -password &lt;password&gt; Get-Date
+</code></pre>
+
+<h2 id="configuringthegenericactionhandler:">Configuring the Generic ActionHandler:</h2>
+
+<p>Add the following to your <code>/opt/autopilot/conf/aae.yaml</code> in the GenericHandler section:</p>
+
+<pre><code class="yaml"># winrm based remote execution
+- Applicability:
+    Priority: 60
+    ModelFilter:
+      AttributeFilter:
+        Name: NodeType
+        Mode: string
+        Value: Machine
+      AttributeFilter:
+        Name: MachineClass
+        Mode: string
+        Value: Windows
+  Capability:
+  - Name: ExecuteCommand
+    Description: &quot;execute command on remote host&quot;
+    Interpreter: winrm -hostname ${Hostname} -username ${User} -password ${Password} &quot;$(&lt;${TEMPFILE})&quot; | dos2unix
+    Command: ${Command}
+    Parameter:
+    - Name: Command
+      Description: &quot;DOS command to execute&quot;
+      Mandatory: true
+    - Name: Hostname
+      Description: &quot;host to execute command on&quot;
+      Mandatory: true
+    - Name: User
+      Description: &quot;target user&quot;
+      Default: &lt;default_windows_user&gt;
+    - Name: Password
+      Description: &quot;target user's password&quot;
+      Default: &lt;password_of_default_windows_user&gt;
+  - Name: ExecutePowershell
+    Description: &quot;execute command on remote host&quot;
+    Interpreter: winrm-powershell -hostname ${Hostname} -username ${User} -password ${Password} &quot;$(&lt;${TEMPFILE})&quot; | dos2unix
+    Command: ${Command}
+    Parameter:
+    - Name: Command
+      Description: &quot;Powershell command to execute&quot;
+      Mandatory: true
+    - Name: Hostname
+      Description: &quot;host to execute command on&quot;
+      Mandatory: true
+    - Name: User
+      Description: &quot;target user&quot;
+      Default: &lt;default_windows_user&gt;
+    - Name: Password
+      Description: &quot;target user's password&quot;
+      Default: &lt;password_of_default_windows_user&gt;
+</code></pre>
+
+<p>Restart the AutoPilot Engine: <code>sudo /etc/init.d/autopilot-engine restart</code></p>
+
+<p>After that, your KIs should be able to execute DOS commands on the Windows targets using <code>&lt;Action Capability=&quot;ExecuteCommand&quot;&gt;</code> and Powershell commands using <code>&lt;Action Capability=&quot;ExecutePowershell&quot;&gt;</code></p>
+
+</body>
+</html>
