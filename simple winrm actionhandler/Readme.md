@@ -1,14 +1,6 @@
 Title:   A simple WinRM-based ActionHandler for Windows nodes
 Author:  Marcus Klemm
 Date:    December 7, 2015  
-CSS:     https://tabtab.co/css/tabtab.css
-CSS:     https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700|Source+Code+Pro|Handlee
-HTML header:  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/highlight.min.js"></script>
-HTML header:  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/languages/yaml.min.js"></script>
-HTML header:  <script type="text/javascript">hljs.initHighlightingOnLoad();</script>
-HTML header:  <script type="text/javascript">window.addEventListener("load", function () { document.body.className = "markdown-view"; }, false);</script>
-CSS:     https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.0.0/styles/github.min.css
-HTML header:  <style>body { margin: 1cm !important; }</style>
 
 # Simple ActionHandler to execute commands on Windows machines using WinRM
 
