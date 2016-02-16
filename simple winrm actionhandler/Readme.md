@@ -126,3 +126,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
 Restart the AutoPilot Engine: `sudo /etc/init.d/autopilot-engine restart`
 
 After that, your KIs should be able to execute DOS commands on the Windows targets using `<Action Capability="ExecuteCommand">` and Powershell commands using `<Action Capability="ExecutePowershell">`
+
+##Executable 
+
+If you are looking for the mentioned 3rd party executables and files required to set this up, please contact us at autopilot-support@arago.de .
