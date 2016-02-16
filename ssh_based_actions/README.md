@@ -15,6 +15,7 @@ Here we want to show how this can be achieved with AutoPilot utilizing SSH.
 
 * the server running AutoPilot engine can directly connect to SSHd on all target servers (for target user 'root' this includes that remote loging for 'root' is allowed)
 * the target servers are Linux servers (just for the sake of our sample configuration, can be easily extened to any UNIX)
+* the SSHd on target servers is configured with `UseDNS no` or DNS reverse lookup is working properly (to prevent long timeouts during ssh login)
 
 ### Preparation
 
@@ -36,7 +37,13 @@ ssh-keygen -t rsa -b 2048 -N "" -C "AutoPilot Automation Engine"
 
 ### More general setups
 
-TODO
+Since SSH is quite powerful you can achieve transparent access even if a direct access is not possible. E.g. you might need to ssh to a hop server first and from there you can ssh to the target servers. If the ssh pub-key is add to the `authorized_keys` of the hop-account you can still use the configurations described below if you add to `/opt/autopilot/.ssh/config` on AutoPilot Engine server something like this:
+```
+Host *.my.hidden.domain
+ User root
+ ProxyCommand ssh <hop-user>@<hop-server> /usr/bin/nc -w 90 %h %p
+ ControlMaster auto
+```
 
 ## Configuration of Generic Action Handler
 
@@ -136,10 +143,66 @@ stname} ${Command}
 
 ## Sample usage in KI
 
+We don't show full KIs here. Just the <Action> element you have to produce. Using KI Editor you would not write the <Action> element directly but after doing it once using the UI it will be quite obvious how to create the corresponding thing using KI Editor.
+
+In the examples all the `Parameter` settings contain hard coded values. In real life most of those parameters will be or contain place holder variables (`${..}` construct) that get be expanding from KI context variables.
+
 ### ExecuteCommand
+
+as 'root' relying on default user setting:
+```xml
+<Action Capability="ExecuteCommand" Timeout="60">
+    <Parameter Name="Command">ls -l /</Parameter>
+    <Parameter Name="Hostname">my.host.com</Parameter>
+</Action>
+```
+
+as 'root' specifying user explicitly:
+```xml
+<Action Capability="ExecuteCommand" Timeout="60">
+    <Parameter Name="Command">ls -l /</Parameter>
+    <Parameter Name="Hostname">my.host.com</Parameter>
+    <Parameter Name="User">root</Parameter>    
+</Action>
+```
 
 ### RunScript
 
+as 'root' specifying user explicitly:
+
+```xml
+<Action Capability="RunScript" Timeout="30">
+        <Parameter Name="Hostname">server1.my.domain</Parameter>
+        <Parameter Name="User">root</Parameter>    
+        <Parameter Name="Command"><![CDATA[#!/usr/bin/perl -w
+#  - get uid of user 'oracle'
+$uid = getpwnam('oracle');
+print $uid;
+]]></Parameter>
+    </Action>
+```
+
+you can achieve the same without `<Parameter Name="User">root</Parameter>` since 'root' is default.
+
 ### UploadFile
 
+as 'root' relying on default user setting:
+```xml
+<Action Capability="UploadFile" Timeout="30"> 
+      <Parameter Name="Hostname">my.host.com</Parameter> 
+      <Parameter Name="Source">/templates/etc_motd</Parameter> 
+      <Parameter Name="Target">/etc/motd</Parameter> 
+</Action> 
+```
+
 ### DownloadFile
+as 'root' specifying user explicitly:
+```xml
+<Action Capability="DownloadFile" Timeout="60" > 
+   <Parameter Name="Hostname">my.host.com</Parameter> 
+      <Parameter Name="User">root</Parameter> 
+      <Parameter Name="Source">/etc/passwd</Parameter> 
+      <Parameter Name="Target">/gathered_data/my.host.com</Parameter> 
+      <Parameter Name="CreateTarget">1</Parameter> 
+      </Action> 
+```
