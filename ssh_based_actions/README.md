@@ -200,9 +200,9 @@ as 'root' specifying user explicitly:
 ```xml
 <Action Capability="DownloadFile" Timeout="60" > 
    <Parameter Name="Hostname">my.host.com</Parameter> 
-      <Parameter Name="User">root</Parameter> 
-      <Parameter Name="Source">/etc/passwd</Parameter> 
-      <Parameter Name="Target">/gathered_data/my.host.com</Parameter> 
-      <Parameter Name="CreateTarget">1</Parameter> 
-      </Action> 
+   <Parameter Name="User">root</Parameter> 
+   <Parameter Name="Source">/etc/passwd</Parameter> 
+   <Parameter Name="Target">/gathered_data/my.host.com</Parameter> 
+   <Parameter Name="CreateTarget">1</Parameter> 
+</Action> 
 ```
