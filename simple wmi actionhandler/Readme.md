@@ -110,3 +110,7 @@ Add the following definition to your /opt/autopilot/conf/aae.yaml file:
 Replace User and Password according to the environment. You can also reference attributes from MARS, please see the section [Dynamic values](https://autopilot.co/docs/5.2.1/html/content/5.2-connectors-generic-actionhandler.html#dynamic_values) from the Generic ActionHandler documentation.
 
 Impacket's WMI implementation  seems to support Kerberos authentification as well, but I have not tried it, yet.
+
+##Executable 
+
+If you are looking for the mentioned 3rd party executables and files required to set this up, please contact us at autopilot-support@arago.de .
