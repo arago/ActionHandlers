@@ -13,13 +13,13 @@ Here we want to show how this can be achieved with AutoPilot utilizing SSH.
 
 ### Assumption
 
-* the server running AutoPilot engine can directly connect to SSHd on all target servers (for target user 'root' this includes that remote loging for 'root' is allowed)
-* the target servers are Linux servers (just for the sake of our sample configuration, can be easily extened to any UNIX)
+* the server running AutoPilot engine can directly connect to SSHd on all target servers (for target user 'root' this includes that remote login for 'root' is allowed)
+* the target servers are Linux servers (just for the sake of our sample configuration, can be easily extended to any UNIX)
 * the SSHd on target servers is configured with `UseDNS no` or DNS reverse lookup is working properly (to prevent long timeouts during ssh login)
 
 ### Preparation
 
-We have to make sure that AutoPilot Engine can _ssh_ to any target server as any users we want to run actions on the target. For the case of simplicity we assume that the target user will alway be root.
+We have to make sure that AutoPilot Engine can _ssh_ to any target server as any users we want to run actions on the target. For the case of simplicity we assume that the target user will always be root.
 
 This can be achieved like this:
 * create pass-phrase free SSH key pair for AutoPilot engine. Log into AutoPilot engine server (as 'root') and do:
@@ -37,7 +37,7 @@ ssh-keygen -t rsa -b 2048 -N "" -C "AutoPilot Automation Engine"
 
 ### More general setups
 
-Since SSH is quite powerful you can achieve transparent access even if a direct access is not possible. E.g. you might need to ssh to a hop server first and from there you can ssh to the target servers. If the ssh pub-key is add to the `authorized_keys` of the hop-account you can still use the configurations described below if you add to `/opt/autopilot/.ssh/config` on AutoPilot Engine server something like this:
+Since SSH is quite powerful you can achieve transparent access even if a direct access is not possible. E.g. you might need to _ssh_ to a hop server first and from there you can _ssh_ to the target servers. If the ssh pub-key is added to the `authorized_keys` of the hop-account you can still use the configurations described below if you add to `/opt/autopilot/.ssh/config` on AutoPilot Engine server something like this:
 ```
 Host *.my.hidden.domain
  User root
@@ -47,11 +47,12 @@ Host *.my.hidden.domain
 
 ## Configuration of Generic Action Handler
 
-Having the SSH connectivity in place as described above we can now configure the generic Action Handler such that it will provide
-* ExecuteCommand: execute command on remote host
-* RunScript: run script on remote host
-* UploadFile: copy files/directories (recursively) to remote server
-* DownloadFile: copy files/directories (recursively) from remote server
+Having the SSH connectivity in place as described above we can now configure the generic Action Handler to provide
+* **ExecuteCommand**: execute command on remote host
+* **RunScript**: run script on remote host
+* **UploadFile**: copy files/directories (recursively) to remote server
+* **DownloadFile**: copy files/directories (recursively) from remote server
+
 for all Linux servers.
 
 ### aae.yaml
@@ -141,11 +142,11 @@ stname} ${Command}
       Default: ""
 ```
 
-## Sample usage in KI
+## Sample usage in KI (Knowledge Item)
 
-We don't show full KIs here. Just the <Action> element you have to produce. Using KI Editor you would not write the <Action> element directly but after doing it once using the UI it will be quite obvious how to create the corresponding thing using KI Editor.
+We don't show full KIs here. Just the `<Action>` element you have to produce. Using KI Editor you would not write the `<Action>` element directly but after doing it once with the UI it will be quite obvious how to create the corresponding element in KI Editor.
 
-In the examples all the `Parameter` settings contain hard coded values. In real life most of those parameters will be or contain place holder variables (`${..}` construct) that get be expanding from KI context variables.
+In the examples all the `Parameter` settings contain hard coded values. In real life most of those parameters will contain placeholder variables (`${..}` constructs) that will be expanded from KI context variables.
 
 ### ExecuteCommand
 
