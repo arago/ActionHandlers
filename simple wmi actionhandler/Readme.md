@@ -111,6 +111,6 @@ Replace User and Password according to the environment. You can also reference a
 
 Impacket's WMI implementation  seems to support Kerberos authentification as well, but I have not tried it, yet.
 
-##Executable 
+##Executables 
 
 If you are looking for the mentioned 3rd party executables and files required to set this up, please contact us at autopilot-support@arago.de .
