@@ -89,7 +89,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
   Capability:
   - Name: ExecuteCommand
     Description: "execute command on remote host"
-    Interpreter: winrm -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | dos2unix
+    Interpreter: winrm -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | sed '1 s/\xEF\xBB\xBF//' | dos2unix
 	Command: ${Command}
     Parameter:
     - Name: Command
@@ -106,7 +106,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Default: <password_of_default_windows_user>
   - Name: ExecutePowershell
     Description: "execute command on remote host"
-    Interpreter: winrm-powershell -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | dos2unix
+    Interpreter: winrm-powershell -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | sed '1 s/\xEF\xBB\xBF//' | dos2unix
 	Command: ${Command}
     Parameter:
     - Name: Command
