@@ -54,11 +54,11 @@ Add the following definition to your /opt/autopilot/conf/aae.yaml file:
 - Applicability:
     Priority: 70
     ModelFilter:
-      AttributeFilter:
+      Var:
         Name: NodeType
         Mode: string
         Value: Machine
-      AttributeFilter:
+      Var:
         Name: MachineClass
         Mode: string
         Value: Windows
