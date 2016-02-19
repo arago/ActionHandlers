@@ -78,11 +78,11 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
 - Applicability:
     Priority: 60
     ModelFilter:
-      AttributeFilter:
+      Var:
         Name: NodeType
         Mode: string
         Value: Machine
-      AttributeFilter:
+      Var:
         Name: MachineClass
         Mode: string
         Value: Windows
