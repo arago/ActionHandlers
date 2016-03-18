@@ -207,6 +207,3 @@ as 'root' specifying user explicitly:
    <Parameter Name="CreateTarget">1</Parameter> 
 </Action> 
 ```
-##Executables 
-
-If you are looking for the mentioned 3rd party executables and files required to set this up, please contact us at autopilot-support@arago.de .
