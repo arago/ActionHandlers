@@ -63,7 +63,7 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
 - Applicability:
     Priority: 100
     ModelFilter:
-      AttributeFilter:
+      Var:
         Name: MachineClass
         Mode: string
         Value: "Linux"
