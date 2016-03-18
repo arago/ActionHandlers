@@ -5,6 +5,17 @@ We value contribution and feedback.
 
 https://autopilot.co/
 
+# Contributing
+
+We value contribution, if you have any changes or suggestions, or if you have
+created a new action handler, please feel free to open a pull request add it here.
+
+If you submit content to this repository, it will be licensed under the MIT license (see below).
+
+# Questions and Support
+
+For questions and support, please refer to our documentation https://autopilot.co/docs/ and visit our community http://tabtab.co/ for asking detailed questions.
+
 # License for Action Handlers (MIT)
  
 Copyright (c) 2016 arago GmbH
