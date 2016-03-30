@@ -127,37 +127,31 @@ In order to setup Windows for secure remote access, the WinRM service needs to b
 
 #### Open the Microsoft Management Console (mmc.exe) and add the certificates snap-in for the local machine:
 
-<video width="800" height="600" controls>
-  <source src="screencasts/open_mmc.mov" type="video/quicktime">
-  <source src="screencasts/open_mmc.mp4" type="video/mp4">
-Your browser does not support the video tag.
-</video>
+Screencast:
+
+[![Click to open the screencast](https://img.youtube.com/vi/luhwmfmTOYY/0.jpg)](https://www.youtube.com/watch?v=luhwmfmTOYY)
 
 #### Import the root certificate into the 'Trusted Root Certification Authorities' store:
 
-<video width="800" height="600" controls>
-  <source src="screencasts/import_root_cert.mov" type="video/quicktime">
-  <source src="screencasts/import_root_cert.mp4" type="video/mp4">
-Your browser does not support the video tag.
-</video>
+Screencast:
+
+[![Click to open the screencast](https://img.youtube.com/vi/8RvIkygImlk/0.jpg)](https://www.youtube.com/watch?v=8RvIkygImlk)
 
 #### Import the server certificate into the 'Personal' store:
 
 You will need to enter the export password you chose earlier.
 
-<video width="800" height="600" controls>
-  <source src="screencasts/import_server_cert.mov" type="video/quicktime">
-  <source src="screencasts/import_server_cert.mp4" type="video/mp4">
-Your browser does not support the video tag.
-</video>
+Screencast:
+
+[![Click to open the screencast](https://img.youtube.com/vi/l2N9QMbL4ck/0.jpg)](https://www.youtube.com/watch?v=l2N9QMbL4ck)
+
 
 #### Import the client certificate into the 'Trusted People' store:
 
-<video width="800" height="600" controls>
-  <source src="screencasts/import_client_cert.mov" type="video/quicktime">
-  <source src="screencasts/import_client_cert.mp4" type="video/mp4">
-Your browser does not support the video tag.
-</video>
+Screencast:
+
+[![Click to open the screencast](https://img.youtube.com/vi/3G1shxNDyR8/0.jpg)](https://www.youtube.com/watch?v=3G1shxNDyR8)
+
 
 ### Enable and start the WinRM service
 
