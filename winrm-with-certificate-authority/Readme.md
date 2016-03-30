@@ -157,7 +157,7 @@ Screencast:
 
 The commands in this and the following sections are mostly PowerShell commands. The only exception is the netsh command. It can be executed in a PowerShell window nonetheless.
 
-```
+```powershell
 Set-Service winrm -StartupType Automatic -Status Running
 ```
 
@@ -165,7 +165,7 @@ Set-Service winrm -StartupType Automatic -Status Running
 
 Find the thumbprint of your server certificate:
 
-```
+```powershell
 Get-ChildItem cert:\LocalMachine\My
 
 Thumbprint                                Subject
@@ -176,27 +176,29 @@ Thumbprint                                Subject
 Create the new HTTPS listener. Replace `<your_thumbprint>` by the actual thumbprint of your server certificate.
 
 
-```
-New-WSManInstance winrm/config/Listener -SelectorSet @{Address="*";Transport="HTTPS"} -ValueSet @{Hostname="srv1.adlab.loc";CertificateThumbprint="<your_thumbprint>"}
+```powershell
+New-WSManInstance winrm/config/Listener -SelectorSet @{Address="*";Transport="HTTPS"} `
+-ValueSet @{Hostname="srv1.adlab.loc";CertificateThumbprint="<your_thumbprint>"}
 ```
 
 ### Add a firewall exception for port 5986
 
-```
-netsh advfirewall firewall add rule name="Windows remote management HTTPS inbound" protocol=TCP dir=in localport=5986 action=allow
+```bat
+netsh advfirewall firewall add rule name="Windows remote management HTTPS inbound" protocol=TCP ^
+dir=in localport=5986 action=allow
 ```
 
 ### Register the configurations for PowerShell sessions
 
 
-```
+```powershell
 Register-PSSessionConfiguration -Name Microsoft.PowerShell -Force
 Register-PSSessionConfiguration -Name Microsoft.PowerShell.Workflow -Force
 ```
 
 If you are on a 64 bit operating system (you most certainly are), also execute the following command:
 
-```
+```powershell
 Register-PSSessionConfiguration Microsoft.Powershell32 -processorarchitecture x86 -force
 ```
 
@@ -205,7 +207,7 @@ Register-PSSessionConfiguration Microsoft.Powershell32 -processorarchitecture x8
 
 Find the certificate thumbprint of your root CA (My AutoPilot root CA, line 8 in the example) in the cert store:
 
-```
+```powershell
 PS C:\Windows\System32\WindowsPowerShell\v1.0> Get-ChildItem -Path cert:\LocalMachine\Root
 
 Thumbprint                                Subject
@@ -223,8 +225,9 @@ A43489159A520F0D93D032CCAF37E7FE20A8B419  CN=Microsoft Root Authority, OU=Micros
 
 Add a mapping to a local user account. Replace `<your_thumbprint>` by the actual thumbprint of your root certificate. You will be asked for the account name and the credentials. This should be an account with administrative permissions, i.e. a member of the Administrators group:
 
-```
-New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject autopilot -URI * -Issuer <your_thumbprint> -Force
+```powershell
+New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject autopilot `
+-URI * -Issuer <your_thumbprint> -Force
 ```
 
 Windows should now be configured for WinRM access using SSL certificates.
