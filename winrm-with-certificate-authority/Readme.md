@@ -32,7 +32,7 @@ OpenSSL can be used in a great number of ways, covering almost any scenario. Unf
 
 First, create a new directory on your Linux machine, secure it and change your working directory to its path:
 
-```
+```bash
 mkdir -m700 autopilot-ca; cd autopilot-ca
 ```
 
@@ -42,7 +42,7 @@ Download the openssl configuration file and put it into the same directory.
 
 To create the root certificate, first create a new private key:
 
-```
+```bash
 touch root.key && chmod 600 root.key
 openssl genrsa -aes256 -out root.key 2048
 chmod 400 root.key
@@ -52,9 +52,10 @@ You will be prompted for a password. **This password will protect the private ke
 
 After you have a private key for your root certificate, create the certificate itself. You will be prompted for your private key's password and some additional information that will be stored in the certificate. Then asked for a 'Common Name', enter 'My AutoPilot root CA'.
 
-```
+```bash
 touch root.crt && chmod 600 root.crt
-openssl req -config openssl-ap.cnf -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha512
+openssl req -config openssl-ap.cnf -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 \
+-out root.crt -sha512
 chmod 400 root.crt
 ```
 
@@ -64,7 +65,7 @@ The new certificate will be stored in the file *root.crt*. Again, the file will 
 
 In the next step, we have to create a server key and certificate for each target machine. Because they will basically all look the same, we will use a shell script to process a list of server names. First, create a file called *servers.txt* with one hostname per line. It should look like that:
 
-```
+```bash
 server1.example.com
 server2.example.com
 …
@@ -72,13 +73,13 @@ server2.example.com
 
 Then create a new subdirectoy *servers* where we will store the created keys and certificates:
 
-```
+```bash
 mkdir -m700 servers
 ```
 
 Finally, download the script [create-server-certs.sh](resources/create-server-certs.sh), place it in your current working directory *autopilot-ca* and make it executable:
 
-```
+```bash
 chmod 700 create-server-certs.sh
 ```
 
@@ -86,8 +87,10 @@ Then call the script with the list of servers and the directory to store the gen
 
 The script will prompt you for the pass phrase of the private root key and a new export password that will be used to protect the created certificates. You will need the export password when you import the files on Windows. To keep it simple, all generated server certificates will have the same password, as it is only needed to securely transmit them to their destination server.
 
-```
-./create-server-certs.sh -c openssl-ap.cnf -r root.crt -k root.key -d servers -u C=your_country_code -u ST='your_state' -u L='your location e.g. city' -u O='your organisation e.g. company name' -u OU='your organisational unit e.g. department' servers.txt
+```bash
+./create-server-certs.sh -c openssl-ap.cnf -r root.crt -k root.key -d servers -u C=your_country_code \
+-u ST='your_state' -u L='your location e.g. city' -u O='your organisation e.g. company name' \
+-u OU='your organisational unit e.g. department' servers.txt
 Enter pass phrase for root.key: *******
 Enter export password for server certificates: ****
 Verifying - Enter export password for server certificates: ****
@@ -99,13 +102,16 @@ all done
 
 #### Creating the client certificate
 
-Last step is to create a client certificate for AutoPilot. Replace `<your_country_code>`, `<your_state>`, `<your_city>`, `<your_company>` and `<your_department>` with the respective values (they may contain whitespace).
+Last step is to create a client certificate for AutoPilot. Replace `<country_code>`, `<state>`, `<city>`, `<company>` and `<department>` with the respective values (they may contain whitespace).
 
-```
+```bash
 touch autopilot.key && chmod 600 autopilot.key
 openssl genrsa -out autopilot.key 4096
 chmod 400 autopilot.key
-export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key -subj "/C=<your_country_code>/ST=<your_state>/L=<your_city>/O=<your_company>/OU=<your_department>/CN=autopilot" | openssl x509  -req -days 365  -CA root.crt -CAkey root.key -CAcreateserial -out autopilot.crt
+export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key \
+-subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=autopilot" \
+| openssl x509  -req -days 365  -CA root.crt -CAkey root.key -CAcreateserial \
+-out autopilot.crt
 ```
 This will create two files, *autopilot.key* and *autopilot.crt*. The *.crt* certificate file needs to be copied to each server. It does not need password protection as it only contains the (public) certificate part.
 
