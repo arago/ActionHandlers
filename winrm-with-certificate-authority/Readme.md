@@ -54,8 +54,7 @@ After you have a private key for your root certificate, create the certificate i
 
 ```bash
 touch root.crt && chmod 600 root.crt
-openssl req -config openssl-ap.cnf -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 \
--out root.crt -sha512
+openssl req -config openssl-ap.cnf -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha512
 chmod 400 root.crt
 ```
 
@@ -88,9 +87,7 @@ Then call the script with the list of servers and the directory to store the gen
 The script will prompt you for the pass phrase of the private root key and a new export password that will be used to protect the created certificates. You will need the export password when you import the files on Windows. To keep it simple, all generated server certificates will have the same password, as it is only needed to securely transmit them to their destination server.
 
 ```bash
-./create-server-certs.sh -c openssl-ap.cnf -r root.crt -k root.key -d servers -u C=your_country_code \
--u ST='your_state' -u L='your location e.g. city' -u O='your organisation e.g. company name' \
--u OU='your organisational unit e.g. department' servers.txt
+./create-server-certs.sh -c openssl-ap.cnf -r root.crt -k root.key -d servers -u C=your_country_code -u ST='your_state' -u L='your location e.g. city' -u O='your organisation e.g. company name' -u OU='your organisational unit e.g. department' servers.txt
 Enter pass phrase for root.key: *******
 Enter export password for server certificates: ****
 Verifying - Enter export password for server certificates: ****
@@ -108,10 +105,7 @@ Last step is to create a client certificate for AutoPilot. Replace `<country_cod
 touch autopilot.key && chmod 600 autopilot.key
 openssl genrsa -out autopilot.key 4096
 chmod 400 autopilot.key
-export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key \
--subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=autopilot" \
-| openssl x509  -req -days 365  -CA root.crt -CAkey root.key -CAcreateserial \
--out autopilot.crt
+export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=autopilot" | openssl x509  -req -days 365  -CA root.crt -CAkey root.key -CAcreateserial -out autopilot.crt
 ```
 This will create two files, *autopilot.key* and *autopilot.crt*. The *.crt* certificate file needs to be copied to each server. It does not need password protection as it only contains the (public) certificate part.
 
@@ -183,15 +177,13 @@ Create the new HTTPS listener. Replace `<your_thumbprint>` by the actual thumbpr
 
 
 ```powershell
-New-WSManInstance winrm/config/Listener -SelectorSet @{Address="*";Transport="HTTPS"} `
--ValueSet @{Hostname="srv1.adlab.loc";CertificateThumbprint="<your_thumbprint>"}
+New-WSManInstance winrm/config/Listener -SelectorSet @{Address="*";Transport="HTTPS"} -ValueSet @{CertificateThumbprint="<your_thumbprint>"}
 ```
 
 ### Add a firewall exception for port 5986
 
 ```bat
-netsh advfirewall firewall add rule name="Windows remote management HTTPS inbound" protocol=TCP ^
-dir=in localport=5986 action=allow
+netsh advfirewall firewall add rule name="Windows remote management HTTPS inbound" protocol=TCP dir=in localport=5986 action=allow
 ```
 
 ### Register the configurations for PowerShell sessions
@@ -232,16 +224,103 @@ A43489159A520F0D93D032CCAF37E7FE20A8B419  CN=Microsoft Root Authority, OU=Micros
 Add a mapping to a local user account. Replace `<your_thumbprint>` by the actual thumbprint of your root certificate. You will be asked for the account name and the credentials. This should be an account with administrative permissions, i.e. a member of the Administrators group:
 
 ```powershell
-New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject autopilot `
--URI * -Issuer <your_thumbprint> -Force
+New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject autopilot -URI * -Issuer <your_thumbprint> -Force
+```
+
+### Enable certificate authentication
+
+Last step is to enable certificates as an authentication method for the winrm service:
+
+```
+Set-Item -Path WSMan:\localhost\Service\Auth\Certificate -Value $true
+```
+
+Additionally, you can disable Basic authentication since it is insecure:
+
+```
+Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $false
 ```
 
 Windows should now be configured for WinRM access using SSL certificates.
 
 ## AutoPilot ActionHandler
 
-### Installing python >= 2.7.10
+The remaining steps need to be taken on the AutoPilot engine node. 
+
+### Installing python >= 2.7.9
+
+CentOS 6.7 comes with python 2.6.6 pre-installed but the pywinrm library used by this ActionHandler requires python >= 2.7.9. The [IUS Community Project](https://ius.io) provides a repository with the latest release. You can find more information on their [Getting Started](https://ius.io/GettingStarted/) page.
+
+On the AutoPilot machine, download and install the repository. Afterwards, install python 2.7 and some additional python modules:
+
+```bash
+curl -L 'https://centos6.iuscommunity.org/ius-release.rpm' >ius-release.rpm
+yum -y localinstall ius-release.rpm
+yum -y install python27 python27-pip
+pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm
+```
 
 ### Installing and configuring the Actionhandler
 
+Download the WinRM client [winrm-client.py](resources/winrm-client.py) and put it into `/opt/autopilot/bin/` on the AutoPilot engine node. Put both the client certificate `autopilot.crt` and the private key `autopilot.key` into `/opt/autopilot/conf/certs`
+
+Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler section:
+
+```yaml
+- Applicability:
+    Priority: 60
+    ModelFilter:
+      Var:
+        Name: NodeType
+        Mode: string
+        Value: Machine
+      Var:
+        Name: MachineClass
+        Mode: string
+        Value: Windows
+  Capability:
+  - Name: ExecuteCommand
+    Description: "execute cmd.exe command on remote host"
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i cmd <(unix2dos ${TEMPFILE})
+    Command: ${Command}
+    Parameter:
+    - Name: Command
+      Description: "DOS command to execute"
+      Mandatory: true
+    - Name: Hostname
+      Description: "host to execute command on"
+      Mandatory: true
+    - Name: Certificate
+      Description: "path to the client certificate"
+      Default: /opt/autopilot/conf/certs/autopilot.crt
+    - Name: Keyfile
+      Description: "path to the client certificate's private key"
+      Default: /opt/autopilot/conf/certs/autopilot.key
+  - Name: ExecutePowershell
+    Description: "execute powershell command on remote host"
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i powershell <(unix2dos ${TEMPFILE})
+    Command: ${Command}
+    Parameter:
+    - Name: Command
+      Description: "Powershell command to execute"
+      Mandatory: true
+    - Name: Hostname
+      Description: "host to execute command on"
+      Mandatory: true
+    - Name: Certificate
+      Description: "path to the client certificate"
+      Default: /opt/autopilot/conf/certs/autopilot.crt
+    - Name: Keyfile
+      Description: "path to the client certificate's private key"
+      Default: /opt/autopilot/conf/certs/autopilot.key
+```
+
+Restart autopilot-engine.
+
 ## Usage in Knowledge Items
+
+With the above ActionHandler configuration, you can execute DOS commands on machine nodes with MachineClass 'Windows' by using the standard ExecuteCommand capability:
+![Action command with capability ExecuteCommand](screenshots/cmd.png)
+
+In order to execute Powershell scripts, use the capability ExecutePowershell:
+![Action command with capability ExecuteCommand](screenshots/ps.png)
