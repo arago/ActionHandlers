@@ -5,6 +5,7 @@ from winrm.protocol import Protocol
 import re
 import xml.etree.ElementTree as ET
 import codecs
+import xmltodict
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
 parser = argparse.ArgumentParser()
@@ -19,7 +20,80 @@ parser.add_argument("-i", "--interpreter", help="the command interpreter to use,
 
 args = parser.parse_args()
 
-p = Protocol(
+class myProtocol(Protocol):
+    def get_command_output(self, shell_id, command_id):
+        """
+        Get the Output of the given shell and command
+        @param string shell_id: The shell id on the remote machine.
+         See #open_shell
+        @param string command_id: The command id on the remote machine.
+         See #run_command
+        #@return [Hash] Returns a Hash with a key :exitcode and :data.
+         Data is an Array of Hashes where the cooresponding key
+        #   is either :stdout or :stderr.  The reason it is in an Array so so
+         we can get the output in the order it ocurrs on
+        #   the console.
+        """
+        stdout_buffer, stderr_buffer, stdall_buffer = [], [], []
+        command_done = False
+        while not command_done:
+            stdall, stdout, stderr, return_code, command_done = \
+                self._raw_get_command_output(shell_id, command_id)
+            stdout_buffer.append(stdout)
+            stderr_buffer.append(stderr)
+            stdall_buffer.append(stdall)
+        return ''.join(stdall_buffer), ''.join(stdout_buffer), ''.join(stderr_buffer), return_code
+
+    def _raw_get_command_output(self, shell_id, command_id):
+        rq = {'env:Envelope': self._get_soap_header(
+            resource_uri='http://schemas.microsoft.com/wbem/wsman/1/windows/shell/cmd',  # NOQA
+            action='http://schemas.microsoft.com/wbem/wsman/1/windows/shell/Receive',  # NOQA
+            shell_id=shell_id)}
+
+        stream = rq['env:Envelope'].setdefault(
+            'env:Body', {}).setdefault('rsp:Receive', {})\
+            .setdefault('rsp:DesiredStream', {})
+        stream['@CommandId'] = command_id
+        stream['#text'] = 'stderr stdout'
+
+        rs = self.send_message(xmltodict.unparse(rq))
+        root = ET.fromstring(rs)
+        stream_nodes = [node for node in root.findall('.//*')
+                        if node.tag.endswith('Stream')]
+        stdout = stderr = stdall = ''
+        return_code = -1
+        for stream_node in stream_nodes:
+            if stream_node.text:
+                #print stream_node.attrib['Name'] + ":" + str(base64.b64decode(
+                #        stream_node.text.encode('ascii')))
+                if stream_node.attrib['Name'] == 'stdout':
+                    stdout += str(base64.b64decode(
+                        stream_node.text.encode('ascii')))
+                elif stream_node.attrib['Name'] == 'stderr':
+                    stderr += str(base64.b64decode(
+                        stream_node.text.encode('ascii')))
+
+        # We may need to get additional output if the stream has not finished.
+        # The CommandState will change from Running to Done like so:
+        # @example
+        #   from...
+        #   <rsp:CommandState CommandId="..." State="http://schemas.microsoft.com/wbem/wsman/1/windows/shell/CommandState/Running"/>  # NOQA
+        #   to...
+        #   <rsp:CommandState CommandId="..." State="http://schemas.microsoft.com/wbem/wsman/1/windows/shell/CommandState/Done">  # NOQA
+        #     <rsp:ExitCode>0</rsp:ExitCode>
+        #   </rsp:CommandState>
+        command_done = len([node for node in root.findall('.//*')
+                           if node.get('State', '').endswith(
+                            'CommandState/Done')]) == 1
+        if command_done:
+            return_code = int(next(node for node in root.findall('.//*')
+                                   if node.tag.endswith('ExitCode')).text)
+
+        return stdall, stdout, stderr, return_code, command_done
+
+    
+
+p = myProtocol(
     endpoint="https://{hostname}:{port}/wsman".format(hostname=args.hostname, port=args.port),
     transport=args.transport,
     cert_pem=args.certificate.name,
@@ -30,12 +104,12 @@ p = Protocol(
 class Response(object):
     """Response from a remote command execution"""
     def __init__(self, args):
-        self.std_out, self.std_err, self.status_code = args
+        self.std_all, self.std_out, self.std_err, self.status_code = args
 
     def __repr__(self):
         # TODO put tree dots at the end if out/err was truncated
-        return '<Response code {0}, out "{1}", err "{2}">'.format(
-            self.status_code, self.std_out[:20], self.std_err[:20])
+        return '<Response code {0}, out "{1}", err "{2}", all "{3}">'.format(
+            self.status_code, self.std_out, self.std_err, self.std_all)
 
 def strip_namespace(xml):
         """strips any namespaces from an xml string"""
@@ -97,49 +171,48 @@ def run_ps(p, script):
 
         # must use utf16 little endian on windows
         base64_script = base64.b64encode(script.encode("utf_16_le"))
-        rs = run_cmd(p, "mode con: cols=32766 & powershell -encodedcommand %s" % (base64_script))
+        rs = run_cmd(p, "mode con: cols=1024 & powershell -encodedcommand %s" % (base64_script))
         if len(rs.std_err):
             # if there was an error message, clean it it up and make it human
             # readable
             rs.std_err = clean_error_msg(rs.std_err)
         return rs
 
-def run_powershell(p, script):
-    rs = run_ps(p, script)
-    print >>sys.stdout, rs.std_out.decode('cp850')
-    print >>sys.stderr, rs.std_err.decode('cp850')
+def prep_powershell_script(script):
+    # Terse, because we have a max length for the resulting command line and this thing is
+    # still going to be base64-encoded. Twice
+    return """\
+$t = [IO.Path]::GetTempFileName()
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
+gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
+""".format(script=base64.b64encode(script.encode("utf_16_le")))
     
+def prep_script(script):
+    # Terse, because we have a max length for the resulting command line and this thing is
+    # still going to be base64-encoded. Twice
+    script = "@echo off\n" + script
+    return """\
+$t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
+& cmd.exe /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
+""".format(script=base64.b64encode(script.encode("utf_16_le")))
+
 def run_script(p, script):
-    #print "Script:"
-    #print script
-    wrapper="""\
-$tempfile = [IO.Path]::GetTempFileName() | Rename-Item -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
-@"
-@echo off
-
-{script}
-"@ -replace '\n', "`r`n" | out-file -encoding "ASCII" $tempfile
-
-& cmd.exe /c $($tempfile.FullName) 2>&1 | where-object {{ if ($_ -is [System.Management.Automation.ErrorRecord]) {{ write-host "<pserr><![CDATA[$_]]></pserr>"; $false }} else {{ write-host "<psout><![CDATA[$_]]></psout>" }} }}
-""".format(script=script)
-    rs = run_ps(p, wrapper)
+    rs = run_ps(p, script)
     xml = "<root>\n" + rs.std_out.decode('cp850') + "</root>"
     root = ET.fromstring(xml.encode('utf8'))
     nodes = root.findall("./*")
     for s in nodes:
-        if s.tag == 'pserr':
-            if s.text:
+        if s.text:
+            s.text = s.text.rstrip("\n ")
+            if s.tag == 'pserr':
                 print >>sys.stderr, s.text
-            else:
-                print >>sys.stderr, ""
-        elif s.tag == 'psout':
-            if s.text:
+            elif s.tag == 'psout':
                 print >>sys.stdout, s.text
-            else:
-                print >>sys.stdout, ""
 
 if args.interpreter == 'cmd':
-    run_script(p, args.script.read())
+    run_script(p, prep_script(args.script.read()))
 elif args.interpreter == 'powershell':
-    run_powershell(p, args.script.read())
-    
+    run_script(p, prep_powershell_script(args.script.read()))
