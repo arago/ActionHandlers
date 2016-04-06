@@ -30,30 +30,43 @@ class certSession(winrm.Session):
             # readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
-    
-    def prep_script(self, script, interpreter='powershell'):
-        if interpreter == 'cmd':
-            # Terse, because we have a max length for the resulting command line and this thing is
-            # still going to be base64-encoded. Twice
-            wrapper = """\
-$t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
-& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
-exit $LastExitCode
-"""
-        elif interpreter == 'powershell':
-            wrapper = """\
+
+class Script(object):
+    psWrapper="""\
 $t = [IO.Path]::GetTempFileName()
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
 gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
 exit $LastExitCode
 """
-        return wrapper.format(script=base64.b64encode(script.encode("utf_16_le")))
+    cmdWrapper="""\
+$t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
+& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
+exit $LastExitCode
+"""
+    def __init__(self, script, interpreter):
+        if interpreter: self.setInterpreter(interpreter) 
+        if script: self.setScript(script)
+            
+    def setInterpreter(self, interpreter):
+        self.interpreter=interpreter
+        if interpreter == 'cmd': self.wrapper=self.cmdWrapper
+        elif interpreter == 'powershell': self.wrapper=self.psWrapper
 
-    def print_output(self, rs):
-        xml = "<root>\n" + rs.std_out.decode('cp850') + "</root>"
+    def setScript(self, script):
+        if self.interpreter: self.script=self.prep_script(base64.b64encode(script.encode("utf_16_le")))
+        else: print >>sys.stderr, "Error: You have to set the interpreter, first!"
+
+    def run(self, Session):
+        self.rs=Session.run_ps(self.script)
+    
+    def prep_script(self, raw_script):
+        return self.wrapper.format(script=raw_script)
+
+    def print_output(self):
+        xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
         for s in nodes:
@@ -64,7 +77,7 @@ exit $LastExitCode
                 elif s.tag == 'psout':
                     print >>sys.stdout, s.text
 
-
+### MAIN ###
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
@@ -78,24 +91,19 @@ parser.add_argument("-H", "--hostname",
                     required=True)
 parser.add_argument("-p", "--port",
                     help="the port WinRM is listening on on the target machine (default=5986)",
-                    type=int,
-                    default=5986)
+                    type=int, default=5986)
 parser.add_argument("-t", "--transport",
                     help="the transport protocol in use (default=ssl), only ssl implemented by now",
-                    choices=['kerberos', 'ssl', 'plaintext'],
-                    default='ssl')
+                    choices=['kerberos', 'ssl', 'plaintext'], default='ssl')
 parser.add_argument("-c", "--certificate",
                     help="MANDATORY: path to the file containing the client certificate",
-                    required=True,
-                    type=argparse.FileType('r'))
+                    required=True, type=argparse.FileType('r'))
 parser.add_argument("-k", "--keyfile",
                     help="MANDATORY: path to the file containing the client certificate's private key",
-                    required=True,
-                    type=argparse.FileType('r'))
+                    required=True, type=argparse.FileType('r'))
 parser.add_argument("-i", "--interpreter",
                     help="the command interpreter to use, either cmd or powershell (default)",
-                    choices=['cmd', 'powershell'],
-                    default='powershell')
+                    choices=['cmd', 'powershell'], default='powershell')
 
 args = parser.parse_args()
 
@@ -107,7 +115,8 @@ mySession = certSession(
             key=args.keyfile.name,
             validation='ignore')
 
-script=mySession.prep_script(script=args.script.read(), interpreter=args.interpreter)
-rs=mySession.run_ps(script)
-mySession.print_output(rs)
-sys.exit(rs.status_code)
+myScript=Script(script=args.script.read(),
+                interpreter=args.interpreter)
+myScript.run(mySession)
+myScript.print_output()
+sys.exit(myScript.rs.status_code)
