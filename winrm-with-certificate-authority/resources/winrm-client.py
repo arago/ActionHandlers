@@ -71,7 +71,7 @@ sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 parser = argparse.ArgumentParser()
 
 parser.add_argument("script",
-                    help="MANDATORY: path to a file contaning the commands",
+                    help="MANDATORY: path to a file containing the commands",
                     type=argparse.FileType('r'))
 parser.add_argument("-H", "--hostname",
                     help="MANDATORY: the hostname of the machine to execute the command on",
