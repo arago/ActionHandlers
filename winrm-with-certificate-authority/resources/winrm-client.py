@@ -45,11 +45,10 @@ exit $LastExitCode
     def prep_script(self, script):
         # Terse, because we have a max length for the resulting command line and this thing is
         # still going to be base64-encoded. Twice
-        script = "@echo off\n" + script
         return """\
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
-& cmd.exe /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
 exit $LastExitCode
 """.format(script=base64.b64encode(script.encode("utf_16_le")))
