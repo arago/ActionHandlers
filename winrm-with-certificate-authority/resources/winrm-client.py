@@ -30,28 +30,27 @@ class certSession(winrm.Session):
             # readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
-
-    def prep_powershell_script(self, script):
-        # Terse, because we have a max length for the resulting command line and this thing is
-        # still going to be base64-encoded. Twice
-        return """\
-$t = [IO.Path]::GetTempFileName()
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
-gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
-exit $LastExitCode
-""".format(script=base64.b64encode(script.encode("utf_16_le")))
     
-    def prep_script(self, script):
-        # Terse, because we have a max length for the resulting command line and this thing is
-        # still going to be base64-encoded. Twice
-        return """\
+    def prep_script(self, script, interpreter='powershell'):
+        if interpreter == 'cmd':
+            # Terse, because we have a max length for the resulting command line and this thing is
+            # still going to be base64-encoded. Twice
+            wrapper = """\
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
 & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
 exit $LastExitCode
-""".format(script=base64.b64encode(script.encode("utf_16_le")))
+"""
+        elif interpreter == 'powershell':
+            wrapper = """\
+$t = [IO.Path]::GetTempFileName()
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
+gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
+exit $LastExitCode
+"""
+        return wrapper.format(script=base64.b64encode(script.encode("utf_16_le")))
 
     def run_script(self, script):
         rs = self.run_ps(script)
@@ -109,8 +108,5 @@ mySession = certSession(
             key=args.keyfile.name,
             validation='ignore')
 
-if args.interpreter == 'cmd':
-    script=mySession.prep_script(args.script.read())
-elif args.interpreter == 'powershell':
-    script=mySession.prep_powershell_script(args.script.read())
+script=mySession.prep_script(script=args.script.read(), interpreter=args.interpreter)
 mySession.run_script(script)
