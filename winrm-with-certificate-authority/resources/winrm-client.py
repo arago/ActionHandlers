@@ -39,6 +39,7 @@ $t = [IO.Path]::GetTempFileName()
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
 gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
+exit $LastExitCode
 """.format(script=base64.b64encode(script.encode("utf_16_le")))
     
     def prep_script(self, script):
@@ -50,6 +51,7 @@ $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }}
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
 & cmd.exe /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
+exit $LastExitCode
 """.format(script=base64.b64encode(script.encode("utf_16_le")))
 
     def run_script(self, script):
@@ -64,6 +66,7 @@ rm $t
                     print >>sys.stderr, s.text
                 elif s.tag == 'psout':
                     print >>sys.stdout, s.text
+        sys.exit(rs.status_code)
 
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
