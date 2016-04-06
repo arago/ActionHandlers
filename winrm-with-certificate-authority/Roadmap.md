@@ -10,6 +10,7 @@
 1. ~~Find a better way to return interleaved stdout/stderr channels than hand-rolled XML~~
    Thanks to some "features" of the WinRM protocol, this is currently the best approach. I'll revisit this topic
    when I've adapted the PSRP protocol.
+2. Implement return codes
 
 ## In no specific order:
 
