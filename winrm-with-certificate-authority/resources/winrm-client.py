@@ -52,8 +52,7 @@ exit $LastExitCode
 """
         return wrapper.format(script=base64.b64encode(script.encode("utf_16_le")))
 
-    def run_script(self, script):
-        rs = self.run_ps(script)
+    def print_output(self, rs):
         xml = "<root>\n" + rs.std_out.decode('cp850') + "</root>"
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
@@ -109,4 +108,5 @@ mySession = certSession(
             validation='ignore')
 
 script=mySession.prep_script(script=args.script.read(), interpreter=args.interpreter)
-mySession.run_script(script)
+rs=mySession.run_ps(script)
+mySession.print_output(rs)
