@@ -49,6 +49,7 @@ exit $LastExitCode
     def __init__(self, script, interpreter):
         if interpreter: self.setInterpreter(interpreter) 
         if script: self.setScript(script)
+        self.setResult()
             
     def setInterpreter(self, interpreter):
         self.interpreter=interpreter
@@ -58,6 +59,9 @@ exit $LastExitCode
     def setScript(self, script):
         if self.interpreter: self.script=self.prep_script(base64.b64encode(script.encode("utf_16_le")))
         else: print >>sys.stderr, "Error: You have to set the interpreter, first!"
+
+    def setResult(self, rs=None):
+        self.rs=rs
 
     def run(self, Session):
         self.rs=Session.run_ps(self.script)
@@ -119,4 +123,4 @@ myScript=Script(script=args.script.read(),
                 interpreter=args.interpreter)
 myScript.run(mySession)
 myScript.print_output()
-sys.exit(myScript.rs.status_code)
+sys.exit(myScript.rs.status_code or 0)
