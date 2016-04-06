@@ -2,6 +2,7 @@ import sys
 import argparse
 import base64
 from winrm.protocol import Protocol
+from winrm import Response
 import re
 import xml.etree.ElementTree as ET
 import codecs
@@ -20,96 +21,14 @@ parser.add_argument("-i", "--interpreter", help="the command interpreter to use,
 
 args = parser.parse_args()
 
-class myProtocol(Protocol):
-    def get_command_output(self, shell_id, command_id):
-        """
-        Get the Output of the given shell and command
-        @param string shell_id: The shell id on the remote machine.
-         See #open_shell
-        @param string command_id: The command id on the remote machine.
-         See #run_command
-        #@return [Hash] Returns a Hash with a key :exitcode and :data.
-         Data is an Array of Hashes where the cooresponding key
-        #   is either :stdout or :stderr.  The reason it is in an Array so so
-         we can get the output in the order it ocurrs on
-        #   the console.
-        """
-        stdout_buffer, stderr_buffer, stdall_buffer = [], [], []
-        command_done = False
-        while not command_done:
-            stdall, stdout, stderr, return_code, command_done = \
-                self._raw_get_command_output(shell_id, command_id)
-            stdout_buffer.append(stdout)
-            stderr_buffer.append(stderr)
-            stdall_buffer.append(stdall)
-        return ''.join(stdall_buffer), ''.join(stdout_buffer), ''.join(stderr_buffer), return_code
 
-    def _raw_get_command_output(self, shell_id, command_id):
-        rq = {'env:Envelope': self._get_soap_header(
-            resource_uri='http://schemas.microsoft.com/wbem/wsman/1/windows/shell/cmd',  # NOQA
-            action='http://schemas.microsoft.com/wbem/wsman/1/windows/shell/Receive',  # NOQA
-            shell_id=shell_id)}
-
-        stream = rq['env:Envelope'].setdefault(
-            'env:Body', {}).setdefault('rsp:Receive', {})\
-            .setdefault('rsp:DesiredStream', {})
-        stream['@CommandId'] = command_id
-        stream['#text'] = 'stderr stdout'
-
-        rs = self.send_message(xmltodict.unparse(rq))
-        root = ET.fromstring(rs)
-        stream_nodes = [node for node in root.findall('.//*')
-                        if node.tag.endswith('Stream')]
-        stdout = stderr = stdall = ''
-        return_code = -1
-        for stream_node in stream_nodes:
-            if stream_node.text:
-                #print stream_node.attrib['Name'] + ":" + str(base64.b64decode(
-                #        stream_node.text.encode('ascii')))
-                if stream_node.attrib['Name'] == 'stdout':
-                    stdout += str(base64.b64decode(
-                        stream_node.text.encode('ascii')))
-                elif stream_node.attrib['Name'] == 'stderr':
-                    stderr += str(base64.b64decode(
-                        stream_node.text.encode('ascii')))
-
-        # We may need to get additional output if the stream has not finished.
-        # The CommandState will change from Running to Done like so:
-        # @example
-        #   from...
-        #   <rsp:CommandState CommandId="..." State="http://schemas.microsoft.com/wbem/wsman/1/windows/shell/CommandState/Running"/>  # NOQA
-        #   to...
-        #   <rsp:CommandState CommandId="..." State="http://schemas.microsoft.com/wbem/wsman/1/windows/shell/CommandState/Done">  # NOQA
-        #     <rsp:ExitCode>0</rsp:ExitCode>
-        #   </rsp:CommandState>
-        command_done = len([node for node in root.findall('.//*')
-                           if node.get('State', '').endswith(
-                            'CommandState/Done')]) == 1
-        if command_done:
-            return_code = int(next(node for node in root.findall('.//*')
-                                   if node.tag.endswith('ExitCode')).text)
-
-        return stdall, stdout, stderr, return_code, command_done
-
-    
-
-p = myProtocol(
+p = Protocol(
     endpoint="https://{hostname}:{port}/wsman".format(hostname=args.hostname, port=args.port),
     transport=args.transport,
     cert_pem=args.certificate.name,
     cert_key_pem=args.keyfile.name,
     server_cert_validation='ignore'
 )
-
-class Response(object):
-    """Response from a remote command execution"""
-    def __init__(self, args):
-        self.std_all, self.std_out, self.std_err, self.status_code = args
-
-    def __repr__(self):
-        # TODO put tree dots at the end if out/err was truncated
-        return '<Response code {0}, out "{1}", err "{2}", all "{3}">'.format(
-            self.status_code, self.std_out, self.std_err, self.std_all)
 
 def strip_namespace(xml):
         """strips any namespaces from an xml string"""
