@@ -319,7 +319,14 @@ Restart autopilot-engine.
 
 ## Usage in Knowledge Items
 
-With the above ActionHandler configuration, you can execute DOS commands on machine nodes with MachineClass 'Windows' by using the standard ExecuteCommand capability:
+Both ActionHandlers support batch/script execution. For cmd.exe, all elements of Windows/MS-DOS .bat files are supported. Your batch will be prepended by an "@echo off".
+
+For Powershell, you can use every feature of the language. The only limit is the usage of the additional I/O-channels by cmdlets like write-warning, write-verbose and write-debug. Warnings will be written to the standart output channel, prepended by the term "WARNING:". This term will, in fact, be localized, so for a german Windows installation it will be "WARNUNG:" etc., so don't depend on this particular string in your Knowledge Items.
+
+
+
+With the above ActionHandler configuration, you can execute DOS commands on machine nodes with MachineClass 'Windows' by using the standard ExecuteCommand capability.
+
 ![Action command with capability ExecuteCommand](screenshots/cmd.png)
 
 In order to execute Powershell scripts, use the capability ExecutePowershell:
