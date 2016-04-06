@@ -30,32 +30,29 @@ class certSession(winrm.Session):
             # readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
-
-    def prep_powershell_script(self, script):
-        # Terse, because we have a max length for the resulting command line and this thing is
-        # still going to be base64-encoded. Twice
-        return """\
+    
+    def prep_script(self, script, interpreter='powershell'):
+        if interpreter == 'cmd':
+            # Terse, because we have a max length for the resulting command line and this thing is
+            # still going to be base64-encoded. Twice
+            wrapper = """\
+$t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
+& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
+exit $LastExitCode
+"""
+        elif interpreter == 'powershell':
+            wrapper = """\
 $t = [IO.Path]::GetTempFileName()
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
 gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
 exit $LastExitCode
-""".format(script=base64.b64encode(script.encode("utf_16_le")))
-    
-    def prep_script(self, script):
-        # Terse, because we have a max length for the resulting command line and this thing is
-        # still going to be base64-encoded. Twice
-        script = "@echo off\n" + script
-        return """\
-$t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
-& cmd.exe /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
-exit $LastExitCode
-""".format(script=base64.b64encode(script.encode("utf_16_le")))
+"""
+        return wrapper.format(script=base64.b64encode(script.encode("utf_16_le")))
 
-    def run_script(self, script):
-        rs = self.run_ps(script)
+    def print_output(self, rs):
         xml = "<root>\n" + rs.std_out.decode('cp850') + "</root>"
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
@@ -66,7 +63,7 @@ exit $LastExitCode
                     print >>sys.stderr, s.text
                 elif s.tag == 'psout':
                     print >>sys.stdout, s.text
-        sys.exit(rs.status_code)
+
 
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
@@ -110,8 +107,7 @@ mySession = certSession(
             key=args.keyfile.name,
             validation='ignore')
 
-if args.interpreter == 'cmd':
-    script=mySession.prep_script(args.script.read())
-elif args.interpreter == 'powershell':
-    script=mySession.prep_powershell_script(args.script.read())
-mySession.run_script(script)
+script=mySession.prep_script(script=args.script.read(), interpreter=args.interpreter)
+rs=mySession.run_ps(script)
+mySession.print_output(rs)
+sys.exit(rs.status_code)

@@ -321,7 +321,7 @@ Restart autopilot-engine.
 
 ### Executing commands and scripts
 
-Both ActionHandlers support batch/script execution. For cmd.exe, all elements of Windows/MS-DOS .bat files are supported. Your batch will be prepended by an "@echo off".
+Both ActionHandlers support batch/script execution. For cmd.exe, all elements of Windows/MS-DOS .bat files are supported. Cmd.exe will be called with /q switch to suppress command echoing.
 
 For Powershell, you can use every feature of the language. The only limit is the usage of the additional I/O-channels by cmdlets like write-warning, write-verbose and write-debug. Warnings will be written to the standart output channel, prepended by the term "WARNING:". This term will, in fact, be localized, so for a german Windows installation it will be "WARNUNG:" etc., so don't depend on this particular string in your Knowledge Items.
 
