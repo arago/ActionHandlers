@@ -281,7 +281,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
   Capability:
   - Name: ExecuteCommand
     Description: "execute cmd.exe command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i cmd <(unix2dos ${TEMPFILE})
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i cmd ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
@@ -298,7 +298,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Default: /opt/autopilot/conf/certs/autopilot.key
   - Name: ExecutePowershell
     Description: "execute powershell command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i powershell <(unix2dos ${TEMPFILE})
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i powershell ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
