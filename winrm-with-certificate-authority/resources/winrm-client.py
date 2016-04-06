@@ -39,6 +39,7 @@ $t = [IO.Path]::GetTempFileName()
 [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
 gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 rm $t
+exit $LastExitCode
 """.format(script=base64.b64encode(script.encode("utf_16_le")))
     
     def prep_script(self, script):
