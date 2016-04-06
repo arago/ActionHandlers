@@ -63,7 +63,7 @@ exit $LastExitCode
                     print >>sys.stderr, s.text
                 elif s.tag == 'psout':
                     print >>sys.stdout, s.text
-        sys.exit(rs.status_code)
+
 
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
@@ -110,3 +110,4 @@ mySession = certSession(
 script=mySession.prep_script(script=args.script.read(), interpreter=args.interpreter)
 rs=mySession.run_ps(script)
 mySession.print_output(rs)
+sys.exit(rs.status_code)
