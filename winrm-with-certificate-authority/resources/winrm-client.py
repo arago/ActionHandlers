@@ -73,28 +73,31 @@ exit $LastExitCode
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(prog='winrm-client',
+                                 description='''Executes cmd and powershell commands on a remote Machine
+                                                running Microsoft Windows via the WinRM protocol.''',
+                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument("script",
-                    help="MANDATORY: path to a file containing the commands",
+                    help="path to a file containing the commands",
                     type=argparse.FileType('r'))
 parser.add_argument("-H", "--hostname",
-                    help="MANDATORY: the hostname of the machine to execute the command on",
+                    help="the hostname of the machine to execute the command on",
                     required=True)
 parser.add_argument("-p", "--port",
-                    help="the port WinRM is listening on on the target machine (default=5986)",
+                    help="the port WinRM is listening on on the target machine",
                     type=int, default=5986)
 parser.add_argument("-t", "--transport",
-                    help="the transport protocol in use (default=ssl), only ssl implemented by now",
+                    help="the transport protocol in use, only ssl implemented by now",
                     choices=['kerberos', 'ssl', 'plaintext'], default='ssl')
 parser.add_argument("-c", "--certificate",
-                    help="MANDATORY: path to the file containing the client certificate",
+                    help="path to the file containing the client certificate",
                     required=True, type=argparse.FileType('r'))
 parser.add_argument("-k", "--keyfile",
-                    help="MANDATORY: path to the file containing the client certificate's private key",
+                    help="path to the file containing the client certificate's private key",
                     required=True, type=argparse.FileType('r'))
 parser.add_argument("-i", "--interpreter",
-                    help="the command interpreter to use, either cmd or powershell (default)",
+                    help="the command interpreter to use, either cmd or powershell",
                     choices=['cmd', 'powershell'], default='powershell')
 
 args = parser.parse_args()
