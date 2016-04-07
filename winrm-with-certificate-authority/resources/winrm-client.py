@@ -2,10 +2,8 @@ import sys
 import argparse
 import base64
 import winrm
-import re
 import xml.etree.ElementTree as ET
 import codecs
-import xmltodict
 
 class certSession(winrm.Session):
     def __init__(self, endpoint, transport, cert, key, validation='ignore'):
