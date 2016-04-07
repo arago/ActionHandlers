@@ -78,7 +78,9 @@ parser = argparse.ArgumentParser(prog='winrm-client',
 
 parser.add_argument("script",
                     help="path to a file containing the commands",
-                    type=argparse.FileType('r'))
+                    nargs='?',
+                    type=argparse.FileType('r'),
+                    default=sys.stdin)
 parser.add_argument("-H", "--hostname",
                     help="the hostname of the machine to execute the command on",
                     required=True)
