@@ -12,7 +12,7 @@ class certSession(winrm.Session):
             transport=transport,
             cert_pem=cert,
             cert_key_pem=key,
-            server_cert_validation='ignore'
+            server_cert_validation=validation
         )
 
     def run_ps(self, script):
