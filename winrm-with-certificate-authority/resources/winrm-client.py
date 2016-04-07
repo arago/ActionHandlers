@@ -18,16 +18,13 @@ class certSession(winrm.Session):
         )
 
     def run_ps(self, script):
-        """base64 encodes a Powershell script and executes the powershell
-        encoded script command
-        """
+        """base64 encodes a Powershell script and executes the powershell encoded script command"""
 
         # must use utf16 little endian on windows
         base64_script = base64.b64encode(script.encode("utf_16_le"))
         rs = self.run_cmd("mode con: cols=1024 & powershell -encodedcommand %s" % (base64_script))
         if len(rs.std_err):
-            # if there was an error message, clean it it up and make it human
-            # readable
+            # if there was an error message, clean it it up and make it human readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
 
@@ -47,39 +44,30 @@ rm $t
 exit $LastExitCode
 """
     def __init__(self, script, interpreter):
-        if interpreter: self.setInterpreter(interpreter) 
-        if script: self.setScript(script)
-        self.setResult()
-            
-    def setInterpreter(self, interpreter):
         self.interpreter=interpreter
-        if interpreter == 'cmd': self.wrapper=self.cmdWrapper
-        elif interpreter == 'powershell': self.wrapper=self.psWrapper
-
-    def setScript(self, script):
-        if self.interpreter: self.script=self.prep_script(base64.b64encode(script.encode("utf_16_le")))
-        else: print >>sys.stderr, "Error: You have to set the interpreter, first!"
-
-    def setResult(self, rs=None):
-        self.rs=rs
-
+        if interpreter=='cmd': self.wrapper=self.cmdWrapper
+        elif interpreter=='powershell': self.wrapper=self.psWrapper
+        else: pass
+        self.script=script
+        self.result=None
+            
     def run(self, Session):
-        self.rs=Session.run_ps(self.script)
-    
-    def prep_script(self, raw_script):
-        return self.wrapper.format(script=raw_script)
-
+        self.rs=Session.run_ps(
+            self.wrapper.format(
+                script=base64.b64encode(
+                    self.script.encode("utf_16_le"))))
+        
     def print_output(self):
         xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
         for s in nodes:
-            if s.text:
-                s.text = s.text.rstrip("\n ")
-                if s.tag == 'pserr':
-                    print >>sys.stderr, s.text
-                elif s.tag == 'psout':
-                    print >>sys.stdout, s.text
+            if s.text: s.text = s.text.rstrip("\n ")
+            else: s.text = ''
+            if s.tag == 'pserr':
+                print >>sys.stderr, s.text
+            elif s.tag == 'psout':
+                print >>sys.stdout, s.text
 
 ### MAIN ###
 
