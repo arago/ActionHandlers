@@ -1,19 +1,14 @@
 import sys
-import argparse
 import base64
 import winrm
 import xml.etree.ElementTree as ET
 import codecs
+import re
+from docopt import docopt
+from schema import Schema, Or, And, Optional, Use
+import schema
 
-class certSession(winrm.Session):
-    def __init__(self, endpoint, transport, cert, key, validation='ignore'):
-        self.protocol = winrm.Protocol(
-            endpoint=endpoint,
-            transport=transport,
-            cert_pem=cert,
-            cert_key_pem=key,
-            server_cert_validation=validation
-        )
+class Session(winrm.Session):
 
     def run_ps(self, script):
         """base64 encodes a Powershell script and executes the powershell encoded script command"""
@@ -25,6 +20,27 @@ class certSession(winrm.Session):
             # if there was an error message, clean it it up and make it human readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
+    
+class certSession(Session):
+    def __init__(self, endpoint, transport, cert, key, validation='ignore'):
+        self.protocol = winrm.Protocol(
+            endpoint=endpoint,
+            transport=transport,
+            cert_pem=cert,
+            cert_key_pem=key,
+            server_cert_validation=validation
+        )
+class basicSession(Session):
+    def __init__(self, endpoint, transport, auth, validation='ignore'):
+        username, password = auth
+        self.protocol = winrm.Protocol(
+            endpoint=endpoint,
+            transport=transport,
+            username=username,
+            password=password,
+            server_cert_validation=validation
+        )
+
 
 class Script(object):
     psWrapper="""\
@@ -68,46 +84,63 @@ exit $LastExitCode
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
-parser = argparse.ArgumentParser(prog='winrm-client',
-                                 description='''Executes cmd and powershell commands on a remote Machine
-                                                running Microsoft Windows via the WinRM protocol.''',
-                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+usage="""
+Usage:
+  winrm-client [options] -H <hostname> ( -c <cert> -k <key> | -u <user> -p <passwd> ) <script> [-]
 
-parser.add_argument("script",
-                    help="path to a file containing the commands",
-                    nargs='?',
-                    type=argparse.FileType('r'),
-                    default=sys.stdin)
-parser.add_argument("-H", "--hostname",
-                    help="the hostname of the machine to execute the command on",
-                    required=True)
-parser.add_argument("-p", "--port",
-                    help="the port WinRM is listening on on the target machine",
-                    type=int, default=5986)
-parser.add_argument("-t", "--transport",
-                    help="the transport protocol in use, only ssl implemented by now",
-                    choices=['kerberos', 'ssl', 'plaintext'], default='ssl')
-parser.add_argument("-c", "--certificate",
-                    help="path to the file containing the client certificate",
-                    required=True, type=argparse.FileType('r'))
-parser.add_argument("-k", "--keyfile",
-                    help="path to the file containing the client certificate's private key",
-                    required=True, type=argparse.FileType('r'))
-parser.add_argument("-i", "--interpreter",
-                    help="the command interpreter to use, either cmd or powershell",
-                    choices=['cmd', 'powershell'], default='powershell')
+Options:
+  -h --help                               Print this help message
+  -P <port> --port=<port>                 The network port to use [default: 5986]
+  -T <transport> --transport=<transport>  The transport protocol to use for user/password
+                                          connections, ssl or plaintext [default: ssl]
+  -i <name> --interpreter=<name>          cmd or powershell [default: powershell]
 
-args = parser.parse_args()
+In order to use a insecure connection, you have to specify both -T plaintext and -P 5985
+(or whatever port you configured on Windows).
+"""
 
+if __name__ == '__main__':
+    s = Schema({"<hostname>":     And(str, Or(lambda hn: re.compile('(?=^.{1,253}$)(^(((?!-)[a-zA-Z0-9-]{1,63}(?<!-))|((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63})$)').match(hn), lambda ip: re.compile('(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)').match(ip)), error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
+                "<cert>":         Or(None, Use(open), error='<cert> has to be a readable file'),
+                "<key>":          Or(None, Use(open), error='<key> has to be a readable file'),
+                "<user>":         Or(None, str),
+                "<passwd>":       Or(None, str),
+                "<script>":       Or(None, Use(open), error='<script> has to be a readable file'),
+                "--help":         bool,
+                "--port":         Or(None, str),
+                "--interpreter":  Or(None, "cmd", "powershell", error='<name> has to be either cmd or powershell'),
+                Optional(object): object
+    })
+    try:
+        args = s.validate(docopt(usage))
+    except schema.SchemaError as e:
+        print >>sys.stderr, usage
+        print >>sys.stderr, e
+        sys.exit(255)
 
-mySession = certSession(
-            endpoint="https://{hostname}:{port}/wsman".format(hostname=args.hostname, port=args.port),
-            transport=args.transport,
-            cert=args.certificate.name,
-            key=args.keyfile.name,
+    if args['-c'] and args['-k']:
+        mySession = certSession(
+            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
+            transport='ssl',
+            cert=args['<cert>'].name,
+            key=args['<key>'].name,
             validation='ignore')
-myScript=Script(script=args.script.read().decode('utf-8'),
-                interpreter=args.interpreter)
-myScript.run(mySession)
-myScript.print_output()
-sys.exit(myScript.rs.status_code or 0)
+    elif args['-u'] and args['-p']:
+        if args['--transport'] == 'ssl': proto='https'
+        else: proto='http'
+        mySession = basicSession(
+            endpoint="{proto}://{hostname}:{port}/wsman".format(proto=proto,hostname=args['<hostname>'], port=args['--port']),
+            transport='ssl',
+            auth=(args['<user>'], args['<passwd>']))
+
+    try:
+        myScript=Script(script=args['<script>'].read().decode('utf-8'),
+                        interpreter=args['--interpreter'])
+        myScript.run(mySession)
+        myScript.print_output()
+        sys.exit(myScript.rs.status_code or 0)
+    except Exception as e:
+        print >>sys.stderr, e
+        sys.exit(255)
+
+            
