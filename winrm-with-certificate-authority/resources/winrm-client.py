@@ -1,9 +1,12 @@
 import sys
-import argparse
 import base64
 import winrm
 import xml.etree.ElementTree as ET
 import codecs
+import re
+from docopt import docopt
+from schema import Schema, Or, And, Optional, Use
+
 
 class certSession(winrm.Session):
     def __init__(self, endpoint, transport, cert, key, validation='ignore'):
@@ -68,46 +71,38 @@ exit $LastExitCode
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 
-parser = argparse.ArgumentParser(prog='winrm-client',
-                                 description='''Executes cmd and powershell commands on a remote Machine
-                                                running Microsoft Windows via the WinRM protocol.''',
-                                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+usage="""
+Usage:
+  winrm-client [options] -H <hostname> ( -c <cert> -k <key> | -u <user> -p <passwd> ) <script> [-]
 
-parser.add_argument("script",
-                    help="path to a file containing the commands",
-                    nargs='?',
-                    type=argparse.FileType('r'),
-                    default=sys.stdin)
-parser.add_argument("-H", "--hostname",
-                    help="the hostname of the machine to execute the command on",
-                    required=True)
-parser.add_argument("-p", "--port",
-                    help="the port WinRM is listening on on the target machine",
-                    type=int, default=5986)
-parser.add_argument("-t", "--transport",
-                    help="the transport protocol in use, only ssl implemented by now",
-                    choices=['kerberos', 'ssl', 'plaintext'], default='ssl')
-parser.add_argument("-c", "--certificate",
-                    help="path to the file containing the client certificate",
-                    required=True, type=argparse.FileType('r'))
-parser.add_argument("-k", "--keyfile",
-                    help="path to the file containing the client certificate's private key",
-                    required=True, type=argparse.FileType('r'))
-parser.add_argument("-i", "--interpreter",
-                    help="the command interpreter to use, either cmd or powershell",
-                    choices=['cmd', 'powershell'], default='powershell')
+Options:
+  -h --help                       Print this help message
+  -P <port> --port=<port>         The network port to use [default: 5986]
+  -i <name> --interpreter=<name>  cmd or powershell [default: powershell]
+"""
 
-args = parser.parse_args()
-
+if __name__ == '__main__':
+    s = Schema({"<hostname>":     And(str, Or(lambda hn: re.compile('(?=^.{1,253}$)(^(((?!-)[a-zA-Z0-9-]{1,63}(?<!-))|((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63})$)').match(hn), lambda ip: re.compile('(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)').match(ip)), error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
+                "<cert>":         Or(None, Use(open), error='<cert> has to be a readable file'),
+                "<key>":          Or(None, Use(open), error='<key> has to be a readable file'),
+                "<user>":         Or(None, str),
+                "<passwd>":       Or(None, str),
+                "<script>":       Or(None, Use(open), error='<script> has to be a readable file'),
+                "--help":         bool,
+                "--port":         Or(None, str),
+                "--interpreter":  Or(None, "cmd", "powershell", error='<name> has to be either cmd or powershell'),
+                Optional(object): object
+    })
+    args = s.validate(docopt(usage))
 
 mySession = certSession(
-            endpoint="https://{hostname}:{port}/wsman".format(hostname=args.hostname, port=args.port),
-            transport=args.transport,
-            cert=args.certificate.name,
-            key=args.keyfile.name,
+            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
+            transport='ssl',
+            cert=args['<cert>'].name,
+            key=args['<key>'].name,
             validation='ignore')
-myScript=Script(script=args.script.read().decode('utf-8'),
-                interpreter=args.interpreter)
+myScript=Script(script=args['<script>'].read().decode('utf-8'),
+                interpreter=args['--interpreter'])
 myScript.run(mySession)
 myScript.print_output()
 sys.exit(myScript.rs.status_code or 0)
