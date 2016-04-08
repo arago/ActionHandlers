@@ -1,46 +1,12 @@
-Title:   A simple WinRM-based ActionHandler for Windows nodes
-Author:  Marcus Klemm
-Date:    December 7, 2015  
-
 # Simple ActionHandler to execute commands on Windows machines using WinRM
 
-In this example I will show you how to configure the Generic ActionHandler to access Microsoft Windows machines using the WinRM protocol. To achieve this, I will utilize a WinRM client written in the Go language. It can be found here: [github.com/masterzen/winrm/tree/master/winrm](https://github.com/masterzen/winrm/tree/master/winrm)
+## Important:
 
-Parts of this guide are about building everything from scratch. The winrm and winrm-powershell binaries are also included in the downloads folder, if you don't want to build them on your own, just skip this step.
+This ActionHandler used to utilize the WinRM client written in the Go language that can be found here: [github.com/masterzen/winrm/tree/master/winrm](https://github.com/masterzen/winrm/tree/master/winrm). Now that our Python client has all the features the Go client had, this has been deprecated. If, for some reason, you want to continue using the Go client, the respective documentation can be found in the winrm-legacy branch.
 
 ## Disclaimer
 
-Do not use this in production! The client I use allows only unencrypted traffic and I will put the password in the AutoPilot config file. This is only a quick hack to use in a test lab.
-
-## Building the winrm client and the winrm-powershell wrapper
-
-If you have an all-in-one installation of AutoPilot, log into the AutoPilot machine. In a multi-node-setup, log into the engine node.
-
-First, install the EPEL repository and git: `sudo yum install epel-release git`
-
-Then, install the Go compiler: `sudo yum install golang`
-
-Create a directory for the Go environment: `mkdir golang`
-
-Setup the GOPATH environment variable and add its bin subdirectory to your path:
-
-```nohighlight
-export GOPATH=~/golang
-export PATH=$PATH:${GOPATH//://bin:}/bin
-```
-
-Download and build the "gox" Go cross-compiler: `go get github.com/mitchellh/gox`
-
-Download and build the winrm client: `go get github.com/masterzen/winrm`
-
-Download and build the winrm-powershell wrapper: `go get github.com/mefellows/winrm-powershell`
-
-Finally, copy the winrm and winrm-powershell binaries to your `/usr/bin` directory (or somewhere else in the user arago's `$PATH`):
-
-```nohighlight
-sudo cp -ax golang/bin/winrm /usr/bin/
-sudo cp -ax golang/bin/winrm-powershell /usr/bin/
-```
+Do not use this in production! The configuration shown here puts both username and password unencrypted into the AutoPilot config file. This is okay when you're in a lab environment and want to do some quick tests. For production, use the config from "winrm--with-certificate-authority", which uses SSL certificates.
 
 ## Preparing the target system(s)
 
@@ -55,18 +21,35 @@ winrm set winrm/config/winrs @{MaxMemoryPerShellMB="1024"}
 
 Your network connection has to be a "work" network.
 
+## Installing python >= 2.7.9
+
+CentOS 6.7 comes with python 2.6.6 pre-installed but the pywinrm library used by this ActionHandler requires python >= 2.7.9. The [IUS Community Project](https://ius.io) provides a repository with the latest release. You can find more information on their [Getting Started](https://ius.io/GettingStarted/) page.
+
+On the AutoPilot machine, download and install the repository. Afterwards, install python 2.7 and some additional python modules:
+
+```bash
+curl -L 'https://centos6.iuscommunity.org/ius-release.rpm' >ius-release.rpm
+yum -y localinstall ius-release.rpm
+yum -y install python27 python27-pip
+pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm docopt schema
+```
+
+## Installing the Actionhandler
+
+Download the WinRM client [winrm-client.py](../winrm-with-certificate-authority/resources/winrm-client.py) and put it into `/opt/autopilot/bin/` on the AutoPilot engine node.
+
 ## Testing the remote access
 
 On the AutoPilot machine, the next command should succeed and you should get a listing of the Windows user’s home directory:
 
 ```nohighlight
-winrm -hostname <dns_name_of_windows_machine> -username <a_local_windows_user> -password <password> dir
+python2.7 /opt/autopilot/bin/winrm-client.py -H <dns_name_of_windows_machine> -u <a_local_windows_user> -p <password> -T plaintext -P 5985 -i cmd <(echo 'dir')
 ```
 
-To test the winrm-powershell wrapper, execute the following:
+To test the execution of PowerShell commands, execute the following:
 
 ```nohighlight
-winrm-powershell -hostname <dns_name_of_windows_machine> -username <a_local_windows_user> -password <password> Get-Date
+python2.7 /opt/autopilot/bin/winrm-client.py -H <dns_name_of_windows_machine> -u <a_local_windows_user> -p <password> -T plaintext -P 5985 -i powershell <(echo 'Get-ChildItem')
 ```
 
 ## Configuring the Generic ActionHandler:
@@ -74,7 +57,6 @@ winrm-powershell -hostname <dns_name_of_windows_machine> -username <a_local_wind
 Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler section:
 
 ```yaml
-# winrm based remote execution
 - Applicability:
     Priority: 60
     ModelFilter:
@@ -88,9 +70,9 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
         Value: Windows
   Capability:
   - Name: ExecuteCommand
-    Description: "execute command on remote host"
-    Interpreter: winrm -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | sed '1 s/\xEF\xBB\xBF//' | dos2unix
-	Command: ${Command}
+    Description: "execute cmd.exe command on remote host"
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -u ${User} -p ${Password} -T plaintext -P 5985 -i cmd ${TEMPFILE}
+    Command: ${Command}
     Parameter:
     - Name: Command
       Description: "DOS command to execute"
@@ -105,12 +87,12 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Description: "target user's password"
       Default: <password_of_default_windows_user>
   - Name: ExecutePowershell
-    Description: "execute command on remote host"
-    Interpreter: winrm-powershell -hostname ${Hostname} -username ${User} -password ${Password} "$(<${TEMPFILE})" | sed '1 s/\xEF\xBB\xBF//' | dos2unix
-	Command: ${Command}
+    Description: "execute cmd.exe command on remote host"
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -u ${User} -p ${Password} -T plaintext -P 5985 -i powershell ${TEMPFILE}
+    Command: ${Command}
     Parameter:
     - Name: Command
-      Description: "Powershell command to execute"
+      Description: "PowerShell command to execute"
       Mandatory: true
     - Name: Hostname
       Description: "host to execute command on"
@@ -126,7 +108,3 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
 Restart the AutoPilot Engine: `sudo /etc/init.d/autopilot-engine restart`
 
 After that, your KIs should be able to execute DOS commands on the Windows targets using `<Action Capability="ExecuteCommand">` and Powershell commands using `<Action Capability="ExecutePowershell">`
-
-##Executables 
-
-If you are looking for the mentioned 3rd party executables and files required to set this up, please contact us at autopilot-support@arago.de .
