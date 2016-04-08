@@ -8,15 +8,7 @@ from docopt import docopt
 from schema import Schema, Or, And, Optional, Use
 import schema
 
-class certSession(winrm.Session):
-    def __init__(self, endpoint, transport, cert, key, validation='ignore'):
-        self.protocol = winrm.Protocol(
-            endpoint=endpoint,
-            transport=transport,
-            cert_pem=cert,
-            cert_key_pem=key,
-            server_cert_validation=validation
-        )
+class Session(winrm.Session):
 
     def run_ps(self, script):
         """base64 encodes a Powershell script and executes the powershell encoded script command"""
@@ -28,6 +20,27 @@ class certSession(winrm.Session):
             # if there was an error message, clean it it up and make it human readable
             rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
+    
+class certSession(Session):
+    def __init__(self, endpoint, transport, cert, key, validation='ignore'):
+        self.protocol = winrm.Protocol(
+            endpoint=endpoint,
+            transport=transport,
+            cert_pem=cert,
+            cert_key_pem=key,
+            server_cert_validation=validation
+        )
+class basicSession(Session):
+    def __init__(self, endpoint, transport, auth, validation='ignore'):
+        username, password = auth
+        self.protocol = winrm.Protocol(
+            endpoint=endpoint,
+            transport=transport,
+            username=username,
+            password=password,
+            server_cert_validation=validation
+        )
+
 
 class Script(object):
     psWrapper="""\
@@ -76,9 +89,14 @@ Usage:
   winrm-client [options] -H <hostname> ( -c <cert> -k <key> | -u <user> -p <passwd> ) <script> [-]
 
 Options:
-  -h --help                       Print this help message
-  -P <port> --port=<port>         The network port to use [default: 5986]
-  -i <name> --interpreter=<name>  cmd or powershell [default: powershell]
+  -h --help                               Print this help message
+  -P <port> --port=<port>                 The network port to use [default: 5986]
+  -T <transport> --transport=<transport>  The transport protocol to use for user/password
+                                          connections, ssl or plaintext [default: ssl]
+  -i <name> --interpreter=<name>          cmd or powershell [default: powershell]
+
+In order to use a insecure connection, you have to specify both -T plaintext and -P 5985
+(or whatever port you configured on Windows).
 """
 
 if __name__ == '__main__':
@@ -101,18 +119,28 @@ if __name__ == '__main__':
         sys.exit(255)
 
     if args['-c'] and args['-k']:
-        try:
-            mySession = certSession(
-                endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
-                transport='ssl',
-                cert=args['<cert>'].name,
-                key=args['<key>'].name,
-                validation='ignore')
-            myScript=Script(script=args['<script>'].read().decode('utf-8'),
-                            interpreter=args['--interpreter'])
-            myScript.run(mySession)
-            myScript.print_output()
-            sys.exit(myScript.rs.status_code or 0)
-        except Exception as e:
-            print >>sys.stderr, e
-            sys.exit(255)
+        mySession = certSession(
+            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
+            transport='ssl',
+            cert=args['<cert>'].name,
+            key=args['<key>'].name,
+            validation='ignore')
+    elif args['-u'] and args['-p']:
+        if args['--transport'] == 'ssl': proto='https'
+        else: proto='http'
+        mySession = basicSession(
+            endpoint="{proto}://{hostname}:{port}/wsman".format(proto=proto,hostname=args['<hostname>'], port=args['--port']),
+            transport='ssl',
+            auth=(args['<user>'], args['<passwd>']))
+
+    try:
+        myScript=Script(script=args['<script>'].read().decode('utf-8'),
+                        interpreter=args['--interpreter'])
+        myScript.run(mySession)
+        myScript.print_output()
+        sys.exit(myScript.rs.status_code or 0)
+    except Exception as e:
+        print >>sys.stderr, e
+        sys.exit(255)
+
+            
