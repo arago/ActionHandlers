@@ -28,10 +28,7 @@ class certSession(winrm.Session):
 
 class Script(object):
     psWrapper="""\
-$t = [IO.Path]::GetTempFileName()
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) >$t
-gc $t | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
+[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 exit $LastExitCode
 """
     cmdWrapper="""\
