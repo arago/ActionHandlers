@@ -106,8 +106,7 @@ mySession = certSession(
             cert=args.certificate.name,
             key=args.keyfile.name,
             validation='ignore')
-
-myScript=Script(script=args.script.read(),
+myScript=Script(script=args.script.read().decode('utf-8'),
                 interpreter=args.interpreter)
 myScript.run(mySession)
 myScript.print_output()
