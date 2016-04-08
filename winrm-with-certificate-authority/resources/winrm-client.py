@@ -6,7 +6,7 @@ import codecs
 import re
 from docopt import docopt
 from schema import Schema, Or, And, Optional, Use
-
+import schema
 
 class certSession(winrm.Session):
     def __init__(self, endpoint, transport, cert, key, validation='ignore'):
@@ -93,16 +93,26 @@ if __name__ == '__main__':
                 "--interpreter":  Or(None, "cmd", "powershell", error='<name> has to be either cmd or powershell'),
                 Optional(object): object
     })
-    args = s.validate(docopt(usage))
+    try:
+        args = s.validate(docopt(usage))
+    except schema.SchemaError as e:
+        print >>sys.stderr, usage
+        print >>sys.stderr, e
+        sys.exit(255)
 
-mySession = certSession(
-            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
-            transport='ssl',
-            cert=args['<cert>'].name,
-            key=args['<key>'].name,
-            validation='ignore')
-myScript=Script(script=args['<script>'].read().decode('utf-8'),
-                interpreter=args['--interpreter'])
-myScript.run(mySession)
-myScript.print_output()
-sys.exit(myScript.rs.status_code or 0)
+    if args['-c'] and args['-k']:
+        try:
+            mySession = certSession(
+                endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
+                transport='ssl',
+                cert=args['<cert>'].name,
+                key=args['<key>'].name,
+                validation='ignore')
+            myScript=Script(script=args['<script>'].read().decode('utf-8'),
+                            interpreter=args['--interpreter'])
+            myScript.run(mySession)
+            myScript.print_output()
+            sys.exit(myScript.rs.status_code or 0)
+        except Exception as e:
+            print >>sys.stderr, e
+            sys.exit(255)
