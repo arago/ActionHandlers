@@ -47,6 +47,7 @@ class basicSession(Session):
 
 class Script(object):
     psWrapper=unicode("""\
+$OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
 @'
 {script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 exit $LastExitCode
@@ -56,7 +57,7 @@ $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }}
 @'
 {script}'@ | out-file -encoding "OEM" $t
 & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
+#rm $t
 exit $LastExitCode
 """)
     def __init__(self, script, interpreter):
