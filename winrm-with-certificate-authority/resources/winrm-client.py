@@ -49,7 +49,7 @@ class Script(object):
     psWrapper=unicode("""\
 $OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
 @'
-{script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+    {script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$($_.TrimEnd(" `n"))]]></$e>"}}
 exit $LastExitCode
 """)
     cmdWrapper=unicode("""\
@@ -76,15 +76,14 @@ exit $LastExitCode
         
     def print_output(self):
         xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
+        print xml
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
         for s in nodes:
-            if s.text: s.text = s.text.rstrip("\n ")
-            else: s.text = ''
             if s.tag == 'pserr':
-                print >>sys.stderr, s.text
+                print >>sys.stderr, s.text or ''
             elif s.tag == 'psout':
-                print >>sys.stdout, s.text
+                print >>sys.stdout, s.text or ''
 
 ### MAIN ###
 
