@@ -89,6 +89,7 @@ exit $LastExitCode
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
 hostnameRegex = '(?=^.{1,253}$)(^(((?!-)[a-zA-Z0-9-]{1,63}(?<!-))|((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63})$)'
 ipv4Regex = '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
+portnumRegex = '^[0-9]+$'
 
 usage="""
 Usage:
@@ -115,7 +116,8 @@ if __name__ == '__main__':
                 "<passwd>":       Or(None, str),
                 "<script>":       Or('-', Use(open), error='<script> has to be a readable file'),
                 "--help":         bool,
-                "--port":         Or(None, str),
+                "--port":         Or(None, And(str, lambda prt: re.compile(portnumRegex).match(prt)),
+                                     error='<port> must be numeric'),
                 "--interpreter":  Or(None, "cmd", "powershell",
                                      error='<name> has to be either cmd or powershell'),
                 Optional(object): object # suppress validation errors for additional elements
