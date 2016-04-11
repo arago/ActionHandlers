@@ -150,14 +150,17 @@ if __name__ == '__main__':
             transport='ssl',
             auth=(args['<user>'], args['<passwd>']))
 
-#    try:
+    try:
         """Execute script on target machine, get results and print them to their respective channels."""
         myScript=Script(script=args['<script>'].read().decode('utf-8'),
                         interpreter=args['--interpreter'])
         myScript.run(mySession)
         myScript.print_output()
         sys.exit(myScript.rs.status_code or 0)
-#    except Exception as e:
+    except (winrm.exceptions.WinRMWebServiceError,
+            winrm.exceptions.WinRMAuthorizationError,
+            winrm.exceptions.WinRMWSManFault,
+            winrm.exceptions.WinRMTransportError) as e:
         """If anything went wrong, print error message and exit"""
         print >>sys.stderr, e
         sys.exit(255)
