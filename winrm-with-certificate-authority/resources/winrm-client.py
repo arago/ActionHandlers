@@ -54,8 +54,9 @@ exit $LastExitCode
     cmdWrapper=unicode("""\
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
-{script}'@ | out-file -encoding "ASCII" $t
+{script}'@ | out-file -encoding "OEM" $t
 & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+rm $t
 exit $LastExitCode
 """)
     def __init__(self, script, interpreter):
@@ -67,9 +68,6 @@ exit $LastExitCode
         self.result=None
             
     def run(self, Session):
-        print self.wrapper.format(
-                script=psesc(self.script
-                    ))
         self.rs=Session.run_ps(
             self.wrapper.format(
                 script=psesc(self.script
