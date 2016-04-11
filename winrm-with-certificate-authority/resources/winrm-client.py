@@ -56,7 +56,7 @@ exit $LastExitCode
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
 {script}'@ | out-file -encoding "OEM" $t
-& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$($_.TrimEnd(" `n"))]]></$e>"}}
 rm $t
 exit $LastExitCode
 """)
