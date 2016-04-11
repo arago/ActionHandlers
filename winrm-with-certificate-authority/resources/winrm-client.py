@@ -8,6 +8,9 @@ from docopt import docopt
 from schema import Schema, Or, And, Optional, Use
 import schema
 
+def psesc(string):
+    return string.replace('@\'', '@`\'').replace('\'@', '`\'@')
+
 class Session(winrm.Session):
 
     def run_ps(self, script):
@@ -43,17 +46,18 @@ class basicSession(Session):
 
 
 class Script(object):
-    psWrapper="""\
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
+    psWrapper=unicode("""\
+@'
+{script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
 exit $LastExitCode
-"""
-    cmdWrapper="""\
+""")
+    cmdWrapper=unicode("""\
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
-[System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String("{script}")) | out-file -encoding "ASCII" $t
+@'
+{script}'@ | out-file -encoding "ASCII" $t
 & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$_]]></$e>"}}
-rm $t
 exit $LastExitCode
-"""
+""")
     def __init__(self, script, interpreter):
         self.interpreter=interpreter
         if interpreter=='cmd': self.wrapper=self.cmdWrapper
@@ -63,10 +67,13 @@ exit $LastExitCode
         self.result=None
             
     def run(self, Session):
+        print self.wrapper.format(
+                script=psesc(self.script
+                    ))
         self.rs=Session.run_ps(
             self.wrapper.format(
-                script=base64.b64encode(
-                    self.script.encode("utf_16_le"))))
+                script=psesc(self.script
+                    )))
         
     def print_output(self):
         xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
@@ -83,6 +90,8 @@ exit $LastExitCode
 ### MAIN ###
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+hostnameRegex = '(?=^.{1,253}$)(^(((?!-)[a-zA-Z0-9-]{1,63}(?<!-))|((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63})$)'
+ipv4Regex = '(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)'
 
 usage="""
 Usage:
@@ -100,17 +109,21 @@ In order to use a insecure connection, you have to specify both -T plaintext and
 """
 
 if __name__ == '__main__':
-    s = Schema({"<hostname>":     And(str, Or(lambda hn: re.compile('(?=^.{1,253}$)(^(((?!-)[a-zA-Z0-9-]{1,63}(?<!-))|((?!-)[a-zA-Z0-9-]{1,63}(?<!-)\.)+[a-zA-Z]{2,63})$)').match(hn), lambda ip: re.compile('(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)').match(ip)), error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
+    s = Schema({"<hostname>":     And(str, Or(lambda hn: re.compile(hostnameRegex).match(hn),
+                                              lambda ip: re.compile(ipv4Regex).match(ip)),
+                                      error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
                 "<cert>":         Or(None, Use(open), error='<cert> has to be a readable file'),
                 "<key>":          Or(None, Use(open), error='<key> has to be a readable file'),
                 "<user>":         Or(None, str),
                 "<passwd>":       Or(None, str),
-                "<script>":       Or(None, Use(open), error='<script> has to be a readable file'),
+                "<script>":       Or('-', Use(open), error='<script> has to be a readable file'),
                 "--help":         bool,
                 "--port":         Or(None, str),
-                "--interpreter":  Or(None, "cmd", "powershell", error='<name> has to be either cmd or powershell'),
-                Optional(object): object
+                "--interpreter":  Or(None, "cmd", "powershell",
+                                     error='<name> has to be either cmd or powershell'),
+                Optional(object): object # suppress validation errors for additional elements
     })
+    
     try:
         args = s.validate(docopt(usage))
     except schema.SchemaError as e:
@@ -119,28 +132,33 @@ if __name__ == '__main__':
         sys.exit(255)
 
     if args['-c'] and args['-k']:
+        """Authenticate using a client certificate, transport is always ssl."""
         mySession = certSession(
-            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'], port=args['--port']),
+            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'],
+                                                              port=args['--port']),
             transport='ssl',
             cert=args['<cert>'].name,
             key=args['<key>'].name,
             validation='ignore')
     elif args['-u'] and args['-p']:
+        """Authenticate using credentials, default is to use ssl transport but this can be overridden."""
         if args['--transport'] == 'ssl': proto='https'
         else: proto='http'
         mySession = basicSession(
-            endpoint="{proto}://{hostname}:{port}/wsman".format(proto=proto,hostname=args['<hostname>'], port=args['--port']),
+            endpoint="{proto}://{hostname}:{port}/wsman".format(proto=proto,
+                                                                hostname=args['<hostname>'],
+                                                                port=args['--port']),
             transport='ssl',
             auth=(args['<user>'], args['<passwd>']))
 
-    try:
+#    try:
+        """Execute script on target machine, get results and print them to their respective channels."""
         myScript=Script(script=args['<script>'].read().decode('utf-8'),
                         interpreter=args['--interpreter'])
         myScript.run(mySession)
         myScript.print_output()
         sys.exit(myScript.rs.status_code or 0)
-    except Exception as e:
+#    except Exception as e:
+        """If anything went wrong, print error message and exit"""
         print >>sys.stderr, e
         sys.exit(255)
-
-            
