@@ -110,7 +110,7 @@ Commands:
 Authentication:
   -c --certs               Authenticate using SSL certificates
   -u --creds               Authenticate using username and password
-  -k --kinit                Authenticate using Kerberos / Active Directory (not yet implemented)
+  -k --kinit               Authenticate using Kerberos / Active Directory (not yet implemented)
 
 Arguments:
   <certificate>            Path to the certificate file
