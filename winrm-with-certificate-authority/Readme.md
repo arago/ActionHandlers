@@ -231,13 +231,13 @@ New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -
 
 Last step is to enable certificates as an authentication method for the winrm service:
 
-```
+```powershell
 Set-Item -Path WSMan:\localhost\Service\Auth\Certificate -Value $true
 ```
 
 Additionally, you can disable Basic authentication since it is insecure:
 
-```
+```powershell
 Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $false
 ```
 
@@ -281,7 +281,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
   Capability:
   - Name: ExecuteCommand
     Description: "execute cmd.exe command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i cmd ${TEMPFILE}
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py cmd ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
@@ -298,7 +298,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Default: /opt/autopilot/conf/certs/autopilot.key
   - Name: ExecutePowershell
     Description: "execute powershell command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -c ${Certificate} -k ${Keyfile} -i powershell ${TEMPFILE}
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py ps ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command

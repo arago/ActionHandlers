@@ -42,14 +42,14 @@ Download the WinRM client [winrm-client.py](../winrm-with-certificate-authority/
 
 On the AutoPilot machine, the next command should succeed and you should get a listing of the Windows user’s home directory:
 
-```nohighlight
-python2.7 /opt/autopilot/bin/winrm-client.py -H <dns_name_of_windows_machine> -u <a_local_windows_user> -p <password> -T plaintext -P 5985 -i cmd <(echo 'dir')
+```bash
+python2.7 /opt/autopilot/bin/winrm-client.py cmd <dns_name_of_windows_machine> --creds <a_local_windows_user> <password> --nossl -p 5985 <(echo 'dir')
 ```
 
 To test the execution of PowerShell commands, execute the following:
 
-```nohighlight
-python2.7 /opt/autopilot/bin/winrm-client.py -H <dns_name_of_windows_machine> -u <a_local_windows_user> -p <password> -T plaintext -P 5985 -i powershell <(echo 'Get-ChildItem')
+```bash
+python2.7 /opt/autopilot/bin/winrm-client.py ps <dns_name_of_windows_machine> --creds <a_local_windows_user> <password> --nossl -p 5985 <(echo 'Get-ChildItem')
 ```
 
 ## Configuring the Generic ActionHandler:
@@ -71,7 +71,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
   Capability:
   - Name: ExecuteCommand
     Description: "execute cmd.exe command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -u ${User} -p ${Password} -T plaintext -P 5985 -i cmd ${TEMPFILE}
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py cmd ${Hostname} --creds ${User} ${Password} --nossl -p 5985 ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
@@ -88,7 +88,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Default: <password_of_default_windows_user>
   - Name: ExecutePowershell
     Description: "execute cmd.exe command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py -H ${Hostname} -u ${User} -p ${Password} -T plaintext -P 5985 -i powershell ${TEMPFILE}
+    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py ps ${Hostname} --creds ${User} ${Password} --nossl -p 5985 ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
