@@ -15,25 +15,28 @@ class Session(winrm.Session):
 
     def run_ps(self, script):
         """base64 encodes a Powershell script and executes the powershell encoded script command"""
+
         # must use utf16 little endian on windows
         base64_script = base64.b64encode(script.encode("utf_16_le"))
         rs = self.run_cmd("mode con: cols=1024 & powershell -encodedcommand %s" % (base64_script))
-        if len(rs.std_err):
+        print rs.std_err
+        #if len(rs.std_err):
             # if there was an error message, clean it it up and make it human readable
-            rs.std_err = self.clean_error_msg(rs.std_err)
+            #rs.std_err = self.clean_error_msg(rs.std_err)
         return rs
     
 class certSession(Session):
-    def __init__(self, endpoint, transport, cert, key, validation='ignore'):
+    def __init__(self, endpoint, auth, validation='ignore'):
+        cert, key = auth
         self.protocol = winrm.Protocol(
             endpoint=endpoint,
-            transport=transport,
+            transport='ssl',
             cert_pem=cert,
             cert_key_pem=key,
             server_cert_validation=validation
         )
 class basicSession(Session):
-    def __init__(self, endpoint, transport, auth, validation='ignore'):
+    def __init__(self, endpoint, auth, transport='ssl', validation='ignore'):
         username, password = auth
         self.protocol = winrm.Protocol(
             endpoint=endpoint,
@@ -55,14 +58,14 @@ exit $LastExitCode
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
 {script}'@ | out-file -encoding "OEM" $t
-    & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `n"))]]></$e>"}}
+    & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `r`n"))]]></$e>"}}
 rm $t
 exit $LastExitCode
 """)
     def __init__(self, script, interpreter):
         self.interpreter=interpreter
         if interpreter=='cmd': self.wrapper=self.cmdWrapper
-        elif interpreter=='powershell': self.wrapper=self.psWrapper
+        elif interpreter=='ps': self.wrapper=self.psWrapper
         else: pass
         self.script=script
         self.result=None
@@ -75,6 +78,7 @@ exit $LastExitCode
         
     def print_output(self):
         xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
+        print xml
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
         for s in nodes:
@@ -92,33 +96,53 @@ portnumRegex = '^[0-9]+$'
 
 usage="""
 Usage:
-  winrm-client [options] -H <hostname> ( -c <cert> -k <key> | -u <user> -p <passwd> ) <script> [-]
+  winrm-client [options] (cmd|ps|wql) <target> --certs <certificate> <keyfile> <script>
+  winrm-client [options] (cmd|ps|wql) <target> --creds <username> <password> [--nossl] <script>
+  winrm-client [options] (cmd|ps|wql) <target> --kinit <realm> <keytab> [--nossl] <script>
+  winrm-client --help
+  winrm-client --version
+
+Commands:
+  cmd                      Execute DOS command or batch file
+  ps                       Execute Powershell command or script
+  wql                      Execute SQL for WMI query (not yet implemented)
+
+Authentication:
+  -c --certs               Authenticate using SSL certificates
+  -u --creds               Authenticate using username and password
+  -k --kinit                Authenticate using Kerberos / Active Directory (not yet implemented)
+
+Arguments:
+  <certificate>            Path to the certificate file
+  <keyfile>                Path to the certificate's keyfile
+  <username>               account name of a local user account on the target machine
+  <password>               password of the local user account
+  <realm>                  Name of the Kerberos realm / Active Directory domain
+  <keytab>                 Path of the Kerberos keytab
+  <target>                 DNS name or IP address of the target machine
+  <script>                 Path to the file containing the commands
 
 Options:
-  -h --help                               Print this help message
-  -P <port> --port=<port>                 The network port to use [default: 5986]
-  -T <transport> --transport=<transport>  The transport protocol to use for user/password
-                                          connections, ssl or plaintext [default: ssl]
-  -i <name> --interpreter=<name>          cmd or powershell [default: powershell]
-
-In order to use a insecure connection, you have to specify both -T plaintext and -P 5985
-(or whatever port you configured on Windows).
+  -p <port> --port=<port>  The network port to use [default: 5986]
+  -n --nossl               Don't use SSL encryption (not possible if using SSL certificate
+                           authentication)
+  -h --help                Print this help message and exit
+  -v --version             Show version and exit
 """
 
 if __name__ == '__main__':
-    s = Schema({"<hostname>":     And(str, Or(lambda hn: re.compile(hostnameRegex).match(hn),
+    s = Schema({"<target>":     And(str, Or(lambda hn: re.compile(hostnameRegex).match(hn),
                                               lambda ip: re.compile(ipv4Regex).match(ip)),
                                       error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
-                "<cert>":         Or(None, Use(open), error='<cert> has to be a readable file'),
-                "<key>":          Or(None, Use(open), error='<key> has to be a readable file'),
-                "<user>":         Or(None, str),
-                "<passwd>":       Or(None, str),
+                "<certificate>":  Or(None, Use(open), error='<cert> has to be a readable file'),
+                "<keyfile>":      Or(None, Use(open), error='<key> has to be a readable file'),
+                "<username>":     Or(None, str),
+                "<password>":     Or(None, str),
+                "<realm>":        Or(None, str),
+                "<keytab>":       Or(None, Use(open), error='<key> has to be a readable file'),
                 "<script>":       Or('-', Use(open), error='<script> has to be a readable file'),
-                "--help":         bool,
                 "--port":         Or(None, And(str, lambda prt: re.compile(portnumRegex).match(prt)),
                                      error='<port> must be numeric'),
-                "--interpreter":  Or(None, "cmd", "powershell",
-                                     error='<name> has to be either cmd or powershell'),
                 Optional(object): object # suppress validation errors for additional elements
     })
     
@@ -129,30 +153,35 @@ if __name__ == '__main__':
         print >>sys.stderr, e
         sys.exit(255)
 
-    if args['-c'] and args['-k']:
+    if args['--certs']:
         """Authenticate using a client certificate, transport is always ssl."""
         mySession = certSession(
-            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<hostname>'],
+            endpoint="https://{hostname}:{port}/wsman".format(hostname=args['<target>'],
                                                               port=args['--port']),
-            transport='ssl',
-            cert=args['<cert>'].name,
-            key=args['<key>'].name,
-            validation='ignore')
-    elif args['-u'] and args['-p']:
+            auth=(args['<certificate>'].name, args['<keyfile>'].name))
+        
+    elif args['--creds']:
         """Authenticate using credentials, default is to use ssl transport but this can be overridden."""
-        if args['--transport'] == 'ssl': proto='https'
-        else: proto='http'
         mySession = basicSession(
-            endpoint="{proto}://{hostname}:{port}/wsman".format(proto=proto,
-                                                                hostname=args['<hostname>'],
+            endpoint="{proto}://{hostname}:{port}/wsman".format(proto = 'http' if args['--nossl'] else 'https',
+                                                                hostname=args['<target>'],
                                                                 port=args['--port']),
-            transport='ssl',
-            auth=(args['<user>'], args['<passwd>']))
+            transport = 'plaintext' if args['--nossl'] else 'ssl',
+            auth=(args['<username>'], args['<password>']))
 
+    elif args['--kinit']:
+        """Athenticate using Kerberos, not yet implemented!"""
+        print >>sys.stderr, "Kerberos authentication is not yet implemented"
+        sys.exit(255)
+        
     try:
         """Execute script on target machine, get results and print them to their respective channels."""
         myScript=Script(script=args['<script>'].read().decode('utf-8'),
-                        interpreter=args['--interpreter'])
+                        interpreter = 'cmd' if args['cmd']
+                                 else 'ps'  if args['ps']
+                                 else 'wql' if args['wql']
+                                 else None
+        )
         myScript.run(mySession)
         myScript.print_output()
         sys.exit(myScript.rs.status_code or 0)
