@@ -15,7 +15,6 @@ class Session(winrm.Session):
 
     def run_ps(self, script):
         """base64 encodes a Powershell script and executes the powershell encoded script command"""
-
         # must use utf16 little endian on windows
         base64_script = base64.b64encode(script.encode("utf_16_le"))
         rs = self.run_cmd("mode con: cols=1024 & powershell -encodedcommand %s" % (base64_script))
@@ -49,14 +48,14 @@ class Script(object):
     psWrapper=unicode("""\
 $OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
 @'
-    {script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$($_.TrimEnd(" `n"))]]></$e>"}}
+    {script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `r`n"))]]></$e>"}}
 exit $LastExitCode
 """)
     cmdWrapper=unicode("""\
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
 {script}'@ | out-file -encoding "OEM" $t
-& cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$($_.TrimEnd(" `n"))]]></$e>"}}
+    & cmd.exe /q /c $t 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `n"))]]></$e>"}}
 rm $t
 exit $LastExitCode
 """)
