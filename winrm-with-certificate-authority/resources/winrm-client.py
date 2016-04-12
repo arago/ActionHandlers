@@ -99,7 +99,6 @@ Usage:
   winrm-client [options] (cmd|ps|wql) <target> --creds <username> <password> [--nossl] <script>
   winrm-client [options] (cmd|ps|wql) <target> --kinit <realm> <keytab> [--nossl] <script>
   winrm-client --help
-  winrm-client --version
 
 Commands:
   cmd                      Execute DOS command or batch file
@@ -126,19 +125,18 @@ Options:
   -n --nossl               Don't use SSL encryption (not possible if using SSL certificate
                            authentication)
   -h --help                Print this help message and exit
-  -v --version             Show version and exit
 """
 
 if __name__ == '__main__':
     s = Schema({"<target>":     And(str, Or(lambda hn: re.compile(hostnameRegex).match(hn),
                                               lambda ip: re.compile(ipv4Regex).match(ip)),
-                                      error='<hostname> has to be a valid hostname, FQDN or IPv4 address'),
-                "<certificate>":  Or(None, Use(open), error='<cert> has to be a readable file'),
-                "<keyfile>":      Or(None, Use(open), error='<key> has to be a readable file'),
+                                      error='<target> has to be a valid hostname, FQDN or IPv4 address'),
+                "<certificate>":  Or(None, Use(open), error='<certificate> has to be a readable file'),
+                "<keyfile>":      Or(None, Use(open), error='<keyfile> has to be a readable file'),
                 "<username>":     Or(None, str),
                 "<password>":     Or(None, str),
                 "<realm>":        Or(None, str),
-                "<keytab>":       Or(None, Use(open), error='<key> has to be a readable file'),
+                "<keytab>":       Or(None, Use(open), error='<keytab> has to be a readable file'),
                 "<script>":       Or('-', Use(open), error='<script> has to be a readable file'),
                 "--port":         Or(None, And(str, lambda prt: re.compile(portnumRegex).match(prt)),
                                      error='<port> must be numeric'),
