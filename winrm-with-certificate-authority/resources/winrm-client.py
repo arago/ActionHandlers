@@ -78,7 +78,6 @@ exit $LastExitCode
         
     def print_output(self):
         xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
-        print xml
         root = ET.fromstring(xml.encode('utf8'))
         nodes = root.findall("./*")
         for s in nodes:
