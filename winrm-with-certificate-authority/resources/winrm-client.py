@@ -67,7 +67,7 @@ exit $LastExitCode
         if interpreter=='cmd': self.wrapper=self.cmdWrapper
         elif interpreter=='ps': self.wrapper=self.psWrapper
         else: pass
-        self.script=script
+        self.script = script if script[-1] == "\n" else script + "\n"
         self.result=None
             
     def run(self, Session):
