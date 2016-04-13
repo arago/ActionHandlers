@@ -50,11 +50,11 @@ chmod 400 root.key
 
 You will be prompted for a password. **This password will protect the private key of your root certificate, so choose a strong one and make sure it does not get lost.** If someone was able to obtain this private key, he could sign his own certificates in your name, basically enabling him to break into any system that trusts your root certificate. In our scenario, this would be all your servers. The password-protected key will be stored in the file *root.key* and the permissions of that file will set so that only you can read it.
 
-After you have a private key for your root certificate, create the certificate itself. You will be prompted for your private key's password and some additional information that will be stored in the certificate. Then asked for a 'Common Name', enter 'My AutoPilot root CA'.
+After you have a private key for your root certificate, create the certificate itself. Replace `<country_code>`, `<state>`, `<city>`, `<company>` and `<department>` with the respective values (they may contain whitespace). You will be prompted for your private key's password.
 
 ```bash
 touch root.crt && chmod 600 root.crt
-openssl req -config openssl-ap.cnf -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha512
+openssl req -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha512 -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=My AutoPilot root CA"
 chmod 400 root.crt
 ```
 
@@ -213,7 +213,7 @@ Thumbprint                                Subject
 CDD4EEAE6000AC7F40C3802C171E30148030C072  CN=Microsoft Root Certificate Authority, DC=microsoft, DC=com
 BE36A4562FB2EE05DBB3D32323ADF445084ED656  CN=Thawte Timestamping CA, OU=Thawte Certification, O=Thawte, L=Durbanville, S=Western Cape, C=ZA
 A43489159A520F0D93D032CCAF37E7FE20A8B419  CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp.
-9168F7AF1BEAE0768CD541CB59D410E2FBBDD122  E=mklemm@arago.de, CN=My AutoPilot root CA, OU=Sales, O=arago GmbH, L=Frankfurt am Main, S=Hessen, C=DE
+9168F7AF1BEAE0768CD541CB59D410E2FBBDD122  CN=My AutoPilot root CA, OU=Sales, O=arago GmbH, L=Frankfurt am Main, S=Hessen, C=DE
 7F88CD7223F3C813818C994614A89C99FA3B5247  CN=Microsoft Authenticode(tm) Root Authority, O=MSFT, C=US
 245C97DF7514E7CF2DF8BE72AE957B9E04741E85  OU=Copyright (c) 1997 Microsoft Corp., OU=Microsoft Time Stamping Service Root, OU=Microsoft Corporation...
 18F7C1FCC3090203FD5BAA2F861A754976C8DD25  OU="NO LIABILITY ACCEPTED, (c)97 VeriSign, Inc.", OU=VeriSign Time Stamping Service Root, OU="VeriSign, ...
@@ -262,7 +262,7 @@ pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm doco
 
 ### Installing and configuring the Actionhandler
 
-Download the WinRM client [winrm-client.py](resources/winrm-client.py) and put it into `/opt/autopilot/bin/` on the AutoPilot engine node. Put both the client certificate `autopilot.crt` and the private key `autopilot.key` into `/opt/autopilot/conf/certs`
+Download the WinRM client [winrm-client.py](resources/winrm-client.py) and put it into `/usr/bin/` on the AutoPilot engine node. Put both the client certificate `autopilot.crt` and the private key `autopilot.key` into `/opt/autopilot/conf/certs`
 
 Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler section:
 
@@ -281,7 +281,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
   Capability:
   - Name: ExecuteCommand
     Description: "execute cmd.exe command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py cmd ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
+    Interpreter: python2.7 /usr/bin/winrm-client.py cmd ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
@@ -298,7 +298,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Default: /opt/autopilot/conf/certs/autopilot.key
   - Name: ExecutePowershell
     Description: "execute powershell command on remote host"
-    Interpreter: python2.7 /opt/autopilot/bin/winrm-client.py ps ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
+    Interpreter: python2.7 /usr/bin/winrm-client.py ps ${Hostname} --certs ${Certificate} ${Keyfile} ${TEMPFILE}
     Command: ${Command}
     Parameter:
     - Name: Command
