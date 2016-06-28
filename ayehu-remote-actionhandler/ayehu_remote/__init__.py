@@ -118,8 +118,10 @@ class Output(object):
 		try:
 			self.post(id, json.loads(req.stream.read()))
 			resp.status=falcon.HTTP_205
-		except:
+		except KeyError:
 			resp.status=falcon.HTTP_404
+		except:
+			resp.status=falcon.HTTP_500
 
 class Property(object):
 	def __init__(self, command):
