@@ -2,6 +2,7 @@ import json
 import falcon
 import uuid
 import redis
+from ayehu_remote.exceptions import AyehuAHError, ExitTwiceError, ResourceNotExistsError
 
 class CommandCollection(object):
 	def __init__(self, redis, baseurl):
@@ -106,7 +107,6 @@ class Output(object):
 
 	def post(self, id, data):
 		if self.command.exists(id):
-			print data
 			self.redis.rpush(
 				"{id}-{name}".format(id=id, name=self.name), data)
 		else:

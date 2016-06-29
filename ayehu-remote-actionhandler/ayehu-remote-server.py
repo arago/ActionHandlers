@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 
-import ayahu_actionhandler_rest as rest
+import ayehu_remote as rest
 import redis
 import falcon
-import urlparse
-import ConfigParser
+from urllib.parse import urlparse
+from configparser import ConfigParser
 
-server_config = ConfigParser.ConfigParser()
+server_config = ConfigParser()
 server_config.read('/opt/autopilot/conf/ayehu-rest.conf')
 
 api = application = falcon.API()
 baseurl=server_config.get('default', 'CallbackBaseURL')
-basepath=urlparse.urlparse(baseurl).path
+basepath=urlparse(baseurl).path
 
 redis = redis.StrictRedis(
 	host=server_config.get('default', 'RedisHost'),
