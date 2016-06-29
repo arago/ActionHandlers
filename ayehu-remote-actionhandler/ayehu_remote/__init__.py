@@ -59,13 +59,13 @@ class Command(object):
 			data["Parameters"] = json.loads(data["Parameters"])
 			return data
 		else:
-			raise KeyError("Command {id} does not exist".format(id=id))
+			raise ResourceNotExistsError("Command {id} does not exist".format(id=id))
 
 	def on_get(self, req, resp, id):
 		try:
 			resp.body = json.dumps(self.get(id))
 			resp.status = falcon.HTTP_200
-		except KeyError as e:
+		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
 
 	def delete(self, id):
@@ -93,7 +93,7 @@ class Output(object):
 			return self.redis.lrange("{id}-{name}".format(
 				id=id, name=self.name), 0, -1)
 		else:
-			raise KeyError(
+			raise ResourceNotExistsError(
 				"Output channel {channel} does not exist".format(
 					channel=self.name))
 
@@ -101,7 +101,7 @@ class Output(object):
 		try:
 			resp.body = json.dumps(self.get(id))
 			resp.status = falcon.HTTP_200
-		except KeyError as e:
+		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
 
 	def post(self, id, data):
@@ -110,7 +110,7 @@ class Output(object):
 			self.redis.rpush(
 				"{id}-{name}".format(id=id, name=self.name), data)
 		else:
-			raise KeyError(
+			raise ResourceNotExistsError(
 				"Output channel {channel} does not exist".format(
 					channel=self.name))
 
@@ -118,7 +118,7 @@ class Output(object):
 		try:
 			self.post(id, json.loads(req.stream.read()))
 			resp.status=falcon.HTTP_205
-		except KeyError:
+		except ResourceNotExistsError:
 			resp.status=falcon.HTTP_404
 		except:
 			resp.status=falcon.HTTP_500
@@ -139,14 +139,14 @@ class Property(object):
 				pass
 			return data
 		else:
-			raise KeyError('Property does not exist')
+			raise ResourceNotExistsError('Property does not exist')
 
 	def on_get(self, req, resp, id, name):
 		try:
 			data = self.get(id, name)
 			resp.body = json.dumps(data)
 			resp.status = falcon.HTTP_200
-		except KeyError:
+		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
 
 class Exit(object):
@@ -165,7 +165,7 @@ class Exit(object):
 				raise ExitTwiceError(
 					'Command can only be terminated once')
 		else:
-			raise KeyError('Command does not exist')
+			raise ResourceNotExistsError('Command does not exist')
 
 	def on_post(self, req, resp, id):
 		try:
@@ -173,5 +173,5 @@ class Exit(object):
 			resp.status = falcon.HTTP_204
 		except ExitTwiceError:
 			resp.status = falcon.HTTP_410
-		except KeyError:
+		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404q
