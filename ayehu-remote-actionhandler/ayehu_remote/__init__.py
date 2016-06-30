@@ -2,7 +2,7 @@ import json
 import falcon
 import uuid
 import redis
-from ayehu_remote.exceptions import AyehuAHError, ExitTwiceError, ResourceNotExistsError
+from ayehu_actionhandler.exceptions import AyehuAHError, ExitTwiceError, ResourceNotExistsError
 
 class CommandCollection(object):
 	def __init__(self, redis, baseurl):
@@ -57,7 +57,10 @@ class Command(object):
 	def get(self, id):
 		if self.exists(id):
 			data = self.redis.hgetall(id)
-			data["Parameters"] = json.loads(data["Parameters"])
+			try:
+				data["Parameters"] = json.loads(data["Parameters"])
+			except KeyError:
+				pass
 			return data
 		else:
 			raise ResourceNotExistsError("Command {id} does not exist".format(id=id))

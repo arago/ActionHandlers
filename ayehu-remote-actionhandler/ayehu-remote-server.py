@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import ayehu_remote as rest
+import ayehu_actionhandler as rest
 import redis
 import falcon
 from urllib.parse import urlparse
@@ -16,7 +16,9 @@ basepath=urlparse(baseurl).path
 redis = redis.StrictRedis(
 	host=server_config.get('default', 'RedisHost'),
 	port=server_config.get('default', 'RedisPort'),
-	db=server_config.get('default', 'RedisDB'))
+	db=server_config.get('default', 'RedisDB'),
+	charset = "utf-8",
+	decode_responses = True)
 collection = rest.CommandCollection(redis, baseurl)
 command = rest.Command(collection)
 props = rest.Property(command)
