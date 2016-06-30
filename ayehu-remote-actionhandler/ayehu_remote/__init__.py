@@ -36,7 +36,7 @@ class CommandCollection(object):
 
 	def on_post(self, req, resp):
 		# TODO: input validation and sanitation
-		data = json.loads(req.stream.read())
+		data = json.loads(req.stream.read().decode("utf-8"))
 		id = self.post(data)
 		resp.body = json.dumps(id)
 		resp.status = falcon.HTTP_201
@@ -119,7 +119,7 @@ class Output(object):
 
 	def on_post(self, req, resp, id):
 		try:
-			self.post(id, json.loads(req.stream.read()))
+			self.post(id, json.loads(req.stream.read().decode("utf-8")))
 			resp.status=falcon.HTTP_205
 		except ResourceNotExistsError:
 			resp.status=falcon.HTTP_404
@@ -172,7 +172,7 @@ class Exit(object):
 
 	def on_post(self, req, resp, id):
 		try:
-			self.post(id, json.loads(req.stream.read()))
+			self.post(id, json.loads(req.stream.read().decode("utf-8")))
 			resp.status = falcon.HTTP_204
 		except ExitTwiceError:
 			resp.status = falcon.HTTP_410
