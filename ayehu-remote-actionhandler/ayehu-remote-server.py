@@ -7,16 +7,16 @@ from urllib.parse import urlparse
 from configparser import ConfigParser
 
 server_config = ConfigParser()
-server_config.read('/opt/autopilot/conf/ayehu-rest.conf')
+server_config.read('/opt/autopilot/conf/ayehu.conf')
 
 api = application = falcon.API()
 baseurl=server_config.get('default', 'CallbackBaseURL')
 basepath=urlparse(baseurl).path
 
 redis = redis.StrictRedis(
-	host=server_config.get('default', 'RedisHost'),
-	port=server_config.get('default', 'RedisPort'),
-	db=server_config.get('default', 'RedisDB'),
+	host=server_config.get('default', 'CommandsRedisHost'),
+	port=server_config.get('default', 'CommandsRedisPort'),
+	db=server_config.get('default', 'CommandsRedisDB'),
 	charset = "utf-8",
 	decode_responses = True)
 collection = rest.CommandCollection(redis, baseurl)
