@@ -31,6 +31,7 @@ class CommandCollection(object):
 	def post(self, data):
 		id = str(uuid.uuid4())
 		data["Parameters"] = json.dumps(data["Parameters"])
+		data["CallbackURL"] = data["CallbackURL"].format(id=id)
 		self.redis.hmset(id, data)
 		return id
 
