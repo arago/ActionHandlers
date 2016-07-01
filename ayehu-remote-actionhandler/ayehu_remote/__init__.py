@@ -39,7 +39,7 @@ class CommandCollection(object):
 		# TODO: input validation and sanitation
 		data = json.loads(req.stream.read().decode("utf-8"))
 		id = self.post(data)
-		resp.body = json.dumps(id)
+		resp.body = json.dumps(id).encode('utf-8')
 		resp.status = falcon.HTTP_201
 
 class Command(object):
@@ -67,7 +67,7 @@ class Command(object):
 
 	def on_get(self, req, resp, id):
 		try:
-			resp.body = json.dumps(self.get(id))
+			resp.body = json.dumps(self.get(id)).encode('utf-8')
 			resp.status = falcon.HTTP_200
 		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
@@ -103,7 +103,7 @@ class Output(object):
 
 	def on_get(self, req, resp, id):
 		try:
-			resp.body = json.dumps(self.get(id))
+			resp.body = json.dumps(self.get(id)).encode('utf-8')
 			resp.status = falcon.HTTP_200
 		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
@@ -147,7 +147,7 @@ class Property(object):
 	def on_get(self, req, resp, id, name):
 		try:
 			data = self.get(id, name)
-			resp.body = json.dumps(data)
+			resp.body = json.dumps(data).encode('utf-8')
 			resp.status = falcon.HTTP_200
 		except ResourceNotExistsError:
 			resp.status = falcon.HTTP_404
