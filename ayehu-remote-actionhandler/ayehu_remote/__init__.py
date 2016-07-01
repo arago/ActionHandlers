@@ -45,19 +45,18 @@ class CommandCollection(object):
 class Command(object):
 	def __init__(self, collection):
 		self.collection=collection
-		self.redis = collection.redis
 		collection.register_command(self)
 		self.outputs = []
 
 	def exists(self, id):
-		return self.redis.exists(id)
+		return self.collection.redis.exists(id)
 
 	def register_output(self, name):
 		self.outputs.append(name)
 
 	def get(self, id):
 		if self.exists(id):
-			data = self.redis.hgetall(id)
+			data = self.collection.redis.hgetall(id)
 			try:
 				data["Parameters"] = json.loads(data["Parameters"])
 			except KeyError:
@@ -74,8 +73,9 @@ class Command(object):
 			resp.status = falcon.HTTP_404
 
 	def delete(self, id):
-		self.redis.delete(id)
-		[self.redis.delete("{id}-{name}".format(id=id, name=output))
+		self.collection.redis.delete(id)
+		[self.collection.redis.delete(
+			"{id}-{name}".format(id=id, name=output))
 		 for output in self.outputs]
 
 	def on_delete(self, req, resp, id):
@@ -86,17 +86,16 @@ class Output(object):
 	def __init__(self, command, name):
 		command.register_output(name)
 		self.command = command
-		self.redis = command.redis
 		self.name = name
 
 	def exists(self, id):
-		return self.redis.exists("{id}-{name}".format(
-			id=id, name=self.name))
+		return self.command.collection.redis.exists(
+			"{id}-{name}".format(id=id, name=self.name))
 
 	def get(self, id):
 		if self.exists(id):
-			return self.redis.lrange("{id}-{name}".format(
-				id=id, name=self.name), 0, -1)
+			return self.command.collection.redis.lrange(
+				"{id}-{name}".format(id=id, name=self.name), 0, -1)
 		else:
 			raise ResourceNotExistsError(
 				"Output channel {channel} does not exist".format(
@@ -111,7 +110,7 @@ class Output(object):
 
 	def post(self, id, data):
 		if self.command.exists(id):
-			self.redis.rpush(
+			self.command.collection.redis.rpush(
 				"{id}-{name}".format(id=id, name=self.name), data)
 		else:
 			raise ResourceNotExistsError(
@@ -129,14 +128,14 @@ class Output(object):
 
 class Property(object):
 	def __init__(self, command):
-		self.redis = command.redis
+		self.command=command
 
 	def exists(self, id, name):
-		return self.redis.hexists(id, name)
+		return self.command.collection.redis.hexists(id, name)
 
 	def get(self, id, name):
 		if self.exists(id, name):
-			data = self.redis.hget(id, name)
+			data = self.command.collection.redis.hget(id, name)
 			try:
 				data = json.loads(data)
 			except ValueError as e:
@@ -155,16 +154,16 @@ class Property(object):
 
 class Exit(object):
 	def __init__(self, command):
-		self.redis = command.redis
+		self.command = command
 
 	def exists(self, id):
-		return self.redis.exists(id)
+		return self.command.collection.redis.exists(id)
 
 	def post(self, id, data):
 		if self.exists(id):
-			if not self.redis.hexists(id, "rc"):
-				self.redis.publish(id, 'exit')
-				self.redis.hset(id, "rc", data)
+			if not self.command.collection.redis.hexists(id, "rc"):
+				self.command.collection.redis.publish(id, 'exit')
+				self.command.collection.redis.hset(id, "rc", data)
 			else:
 				raise ExitTwiceError(
 					'Command can only be terminated once')
