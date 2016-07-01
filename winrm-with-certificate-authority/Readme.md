@@ -257,7 +257,7 @@ On the AutoPilot machine, download and install the repository. Afterwards, insta
 curl -L 'https://centos6.iuscommunity.org/ius-release.rpm' >ius-release.rpm
 yum -y localinstall ius-release.rpm
 yum -y install python27 python27-pip
-pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm docopt schema
+pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm==0.1.1 docopt schema
 ```
 
 ### Installing and configuring the Actionhandler
