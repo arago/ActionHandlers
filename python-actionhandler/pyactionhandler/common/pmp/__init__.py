@@ -1,15 +1,16 @@
 import requests
-import urlparse
+from urllib.parse import urlparse
 import urllib
 import json
-import pprint
-from docopt import docopt
-from schema import Schema, Or, And, Optional, Use
+#import pprint
+#from docopt import docopt
+#from schema import Schema, Or, And, Optional, Use
 import codecs
-import schema
-import sys
+#import schema
+#import sys
 import re
-import ConfigParser
+from configparser import ConfigParser
+from pyactionhandler.common.pmp.exceptions import PMPError, PMPConnectionError
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
@@ -74,22 +75,21 @@ class PMPCredentials(object):
 			))
 			response.raise_for_status()
 		except requests.exceptions.ConnectionError as e:
-			print >>sys.stderr, "Cannot connect to PMP at {api}: {error}".format(
-				api=Session._baseurl,
-				error=e.message.reason.message)
-			sys.exit(255)
+			raise PMPConnectionError(
+				"Cannot connect to PMP at {api}: {error}".format(
+					api=Session._baseurl,
+					error=e.message.reason.message))
 		except requests.exceptions.HTTPError as e:
 			if e.response.status_code == 404:
-				print >>sys.stderr, "No PMP API at {api}".format(
-					api=Session._baseurl)
-				sys.exit(255)
+				raise PMPConnectionError(
+					"No PMP API at {api}".format(api=Session._baseurl))
 		data = json.loads(response.content)
 		if data['operation']['result']['status'] != "Success":
-			print >>sys.stderr, u"Querying PMP for account '{acc}' on resource '{res}' failed: {reason}".format(
-				acc=AccountName,
-				res=ResourceName,
-				reason=data['operation']['result']['message'])
-			sys.exit(255)
+			raise PMPError(
+				"Querying PMP for account '{acc}' on resource '{res}' failed: {reason}".format(
+					acc=AccountName,
+					res=ResourceName,
+					reason=data['operation']['result']['message']))
 		self.Session=Session
 		self.ResourceName=ResourceName
 		self.AccountName=AccountName
@@ -97,39 +97,38 @@ class PMPCredentials(object):
 			self.ResourceID=data[u'operation'][u'Details'][u'RESOURCEID']
 			self.AccountID=data[u'operation'][u'Details'][u'ACCOUNTID']
 		except KeyError as e:
-			print >>sys.stderr, "Account '{acc}' for Resource '{res}' not found!".format(
-				acc=AccountName,
-				res=ResourceName)
-			sys.exit(255)
+			raise PMPError(
+				"Account '{acc}' for Resource '{res}' not found!".format(
+					acc=AccountName,
+					res=ResourceName))
 		try:
 			response2 = Session.get("/resources/{res_id}/accounts".format(
 				res_id=self.ResourceID,
 			))
 			response.raise_for_status()
 		except requests.exceptions.ConnectionError as e:
-			print >>sys.stderr, "Cannot connect to PMP at {api}: {error}".format(
-				api=Session._baseurl,
-				error=e.message.reason.message)
-			sys.exit(255)
+			raise PMPConnectionError(
+				"Cannot connect to PMP at {api}: {error}".format(
+					api=Session._baseurl,
+					error=e.message.reason.message))
 		except requests.exceptions.HTTPError as e:
 			if e.response.status_code == 404:
-				print >>sys.stderr, "No PMP API at {api}".format(
-					api=Session._baseurl)
-				sys.exit(255)
+				raise PMPConnectionError(
+					"No PMP API at {api}".format(api=Session._baseurl))
 		data2 = json.loads(response2.content)
 		if data['operation']['result']['status'] != "Success":
-			print >>sys.stderr, u"Querying PMP for resource '{res}' failed: {reason}".format(
-				res=ResourceName,
-				reason=data['operation']['result']['message'])
-			sys.exit(255)
+			raise PMPError(
+				"Querying PMP for resource '{res}' failed: {reason}".format(
+					res=ResourceName,
+					reason=data['operation']['result']['message']))
 		try:
 			self.ResourceType=data2[u'operation'][u'Details'][u'RESOURCE TYPE']
 			self.ResourceDNSName=data2[u'operation'][u'Details'][u'DNS NAME']
 		except KeyError as e:
-			print >>sys.stderr, "Account '{acc}' for Resource '{res}' not found!".format(
-				acc=AccountName,
-				res=ResourceName)
-			sys.exit(255)
+			raise PMPError(
+				"Account '{acc}' for Resource '{res}' not found!".format(
+					acc=AccountName,
+					res=ResourceName))
 		if self.ResourceType == "Windows":
 			self.WindowsUserName = ".\\" + AccountName
 		elif self.ResourceType == "WindowsDomain":
@@ -142,7 +141,7 @@ class PMPCredentials(object):
 			r.raise_for_status()
 			return json.loads(r.content)[u'operation'][u'Details'][u'PASSWORD']
 		except requests.exceptions.HTTPError as e:
-			print e.message
+			raise PMPError(e.message)
 
 	def get_file(self, filetype):
 		try:
@@ -150,15 +149,14 @@ class PMPCredentials(object):
 			r.raise_for_status()
 			return r.content
 		except requests.exceptions.HTTPError as e:
-			print e.message
-			sys.exit(255)
+			raise PMPError(e.message)
 		except requests.exceptions.ConnectionError as e:
 			if re.search("HTTP/1.1 1000", e.message.args[1].line):
-				print "Account '{acc}' on resource '{res}' has no file {filename}".format(
-					acc=self.AccountName,
-					res=self.ResourceName,
-					filename=filetype)
-			sys.exit(255)
+				raise PMPError(
+					"Account '{acc}' on resource '{res}' has no file {filename}".format(
+						acc=self.AccountName,
+						res=self.ResourceName,
+						filename=filetype))
 
 	def ssh_key(self):
 		return self.get_file("ssh_private_key")
@@ -185,59 +183,3 @@ class TokenAuth(requests.auth.AuthBase):
 
 def copyf(dictlist, key, valuelist):
 	return [dictio for dictio in dictlist if dictio[key] in valuelist]
-
-
-
-if __name__ == '__main__':
-	sys.stdout = codecs.getwriter('utf8')(sys.stdout)
-	sys.stderr = codecs.getwriter('utf8')(sys.stderr)
-
-	usage="""
-Usage:
-  pmp-client [options] (passwd|ssh_key|cert|cert_key) <resource> <account>
-
-Commands:
-  passwd                     Get the password
-  ssh_key                    Get the SSH private key
-  cert                       Get the SSL client certificate
-  cert_key                   Get the key to the SSL client certificate
-
-Arguments:
-  <resouce>                  Name of the PMP resource
-  <account>                  Name of the account
-
-Options:
-  --pmp_inst=<pmp_instance>  Name of the PMP instance [default: default]
-  -h --help                  Print this help message and exit
-"""
-	s = Schema({"<resource>":     And(str),
-	            "<account>":      And(str),
-	            # suppress validation errors for additional elements
-	            Optional(object): object
-	})
-	try:
-		args = s.validate(docopt(usage))
-	except schema.SchemaError as e:
-		print >>sys.stderr, usage
-		print >>sys.stderr, e
-		sys.exit(255)
-
-	config = ConfigParser.ConfigParser()
-	config.read('/opt/autopilot/conf/pmp.conf')
-
-	s = PMPSession(config.get(args['--pmp_inst'], 'URL'))
-	s.auth = TokenAuth(config.get(args['--pmp_inst'], 'Token'))
-	s.verify=False
-
-	a = PMPCredentials(s, ResourceName=args['<resource>'], AccountName=args['<account>'])
-
-	if args['passwd']:
-		print a.passwd()
-	elif args['ssh_key']:
-		print a.ssh_key()
-	elif args['cert']:
-		print a.ssl_cert()
-	elif args['cert_key']:
-		print a.ssl_key()
-
-

@@ -1,3 +1,5 @@
+import winrm
+
 class Session(winrm.Session):
 
 	def run_ps(self, script):
