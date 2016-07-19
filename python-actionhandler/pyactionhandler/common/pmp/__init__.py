@@ -1,5 +1,5 @@
 import requests
-from urllib.parse import urlparse
+import urllib.parse as urlparse
 import urllib
 import json
 #import pprint
@@ -9,7 +9,7 @@ import codecs
 #import schema
 #import sys
 import re
-from configparser import ConfigParser
+#from configparser import ConfigParser
 from pyactionhandler.common.pmp.exceptions import PMPError, PMPConnectionError
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -28,7 +28,7 @@ def addBaseURL(function):
 	return wrapper
 
 class ExtendByDecoratorMeta(type):
-	def __new__(cls, name, bases, d):
+	def __new__(cls, name, bases, d, methodsToDecorate, ignoreUnknownMethods=False):
 
 		def not_implemented(*args, **kwargs):
 			raise NotImplementedError('You called a function that is not'
@@ -41,23 +41,19 @@ class ExtendByDecoratorMeta(type):
 					return getattr(base, m)
 				except AttributeError:
 					pass
-				if ('ignoreUnknownMethods' in d and
-				    d['ignoreUnknownMethods']):
+				if ignoreUnknownMethods:
 					return not_implemented
 				else:
 					raise AttributeError(
 						"No bases have method '{}'".format(m))
 
 		# decorate specified methods with given decorator
-		for decorator in d['methodsToDecorate']:
-			for method in d['methodsToDecorate'][decorator]:
+		for decorator in methodsToDecorate:
+			for method in methodsToDecorate[decorator]:
 				d[method] = decorator(find_method(method))
 		return type(name, bases, d)
 
-class PMPSession(requests.Session):
-	__metaclass__ = ExtendByDecoratorMeta
-	methodsToDecorate = {addBaseURL:['get','post', 'stub']}
-	ignoreUnknownMethods = True
+class PMPSession(requests.Session, metaclass=ExtendByDecoratorMeta, methodsToDecorate = {addBaseURL:['get','post', 'stub']}, ignoreUnknownMethods = True):
 
 	def __init__(self, baseurl, *args, **kwargs):
 		self._baseurl=baseurl
@@ -83,7 +79,7 @@ class PMPCredentials(object):
 			if e.response.status_code == 404:
 				raise PMPConnectionError(
 					"No PMP API at {api}".format(api=Session._baseurl))
-		data = json.loads(response.content)
+		data = response.json()
 		if data['operation']['result']['status'] != "Success":
 			raise PMPError(
 				"Querying PMP for account '{acc}' on resource '{res}' failed: {reason}".format(
@@ -115,7 +111,7 @@ class PMPCredentials(object):
 			if e.response.status_code == 404:
 				raise PMPConnectionError(
 					"No PMP API at {api}".format(api=Session._baseurl))
-		data2 = json.loads(response2.content)
+		data2 = response2.json()
 		if data['operation']['result']['status'] != "Success":
 			raise PMPError(
 				"Querying PMP for resource '{res}' failed: {reason}".format(
@@ -139,13 +135,16 @@ class PMPCredentials(object):
 		try:
 			r = self.Session.get("/resources/{res_id}/accounts/{acc_id}/password".format(res_id=self.ResourceID, acc_id=self.AccountID))
 			r.raise_for_status()
-			return json.loads(r.content)[u'operation'][u'Details'][u'PASSWORD']
+			return r.json()[u'operation'][u'Details'][u'PASSWORD']
 		except requests.exceptions.HTTPError as e:
 			raise PMPError(e.message)
 
-	def get_file(self, filetype):
+	def get_file(self, filetype=None):
 		try:
-			r = self.Session.get("/resources/{res_id}/accounts/{acc_id}/downloadfile".format(res_id=self.ResourceID, acc_id=self.AccountID), params={"INPUT_DATA":"{{\"operation\":{{\"Details\":{{\"ISCUSTOMFIELD\":\"TRUE\",\"CUSTOMFIELDTYPE\":\"ACCOUNT\",\"CUSTOMFIELDLABEL\":\"{field}\"}}}}}}".format(field=filetype)})
+			if filetype:
+				r = self.Session.get("/resources/{res_id}/accounts/{acc_id}/downloadfile".format(res_id=self.ResourceID, acc_id=self.AccountID), params={"INPUT_DATA":"{{\"operation\":{{\"Details\":{{\"ISCUSTOMFIELD\":\"TRUE\",\"CUSTOMFIELDTYPE\":\"ACCOUNT\",\"CUSTOMFIELDLABEL\":\"{field}\"}}}}}}".format(field=filetype)})
+			else:
+				r = self.Session.get("/resources/{res_id}/accounts/{acc_id}/downloadfile".format(res_id=self.ResourceID, acc_id=self.AccountID))
 			r.raise_for_status()
 			return r.content
 		except requests.exceptions.HTTPError as e:
@@ -158,14 +157,13 @@ class PMPCredentials(object):
 						res=self.ResourceName,
 						filename=filetype))
 
+	@property
 	def ssh_key(self):
 		return self.get_file("ssh_private_key")
 
+	@property
 	def ssl_cert(self):
 		return self.get_file("ssl_client_certificate")
-
-	def ssl_key(self):
-		return self.get_file("ssl_client_certificate_key")
 
 
 class TokenAuth(requests.auth.AuthBase):

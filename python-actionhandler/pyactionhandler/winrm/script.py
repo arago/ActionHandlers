@@ -1,3 +1,6 @@
+from pyactionhandler.winrm.helper import psesc
+import xml.etree.ElementTree as ET
+
 class Script(object):
 	psWrapper="""\
 $OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
@@ -32,14 +35,16 @@ exit $LastExitCode
 				cols=self.cols,
 				script=psesc(self.script)))
 
-	def print_output(self):
+	def get_outputs(self):
+		stdout = []
+		stderr = []
 		xml = "<root>\n" + self.rs.std_out.decode('cp850') + "</root>"
-		#xml = xml.replace("\r\n", '')
 		root = ET.fromstring(xml.encode('utf8'))
 		nodes = root.findall("./*")
 		for s in nodes:
 			out =  s.text if s.text else ''
 			if s.tag == 'pserr':
-				sys.stderr.write(out)
+				stderr.append(out)
 			elif s.tag == 'psout':
-				sys.stdout.write(out)
+				stdout.append(out)
+		return '\n'.join(stdout), '\n'.join(stderr)

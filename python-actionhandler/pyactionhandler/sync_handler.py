@@ -66,7 +66,6 @@ class SyncHandler(object):
 				resp.success = action.success
 				self.zmq_socket.send_multipart((id1, id2, svc_call, resp.SerializeToString()))
 				del id1, id2, svc_call, resp
-				print("responses delivered")
 				self.response_queue.task_done()
 		except GreenletExit as e:
 			print("Stopped handling responses")

@@ -21,3 +21,7 @@ class WorkerCollection(object):
 
 	def remove_worker(self, worker):
 		self.workers = {n: w for n, w in self.workers.items() if w is not worker}
+
+	def shutdown_workers(self):
+		for n,w in self.workers.items():
+			w.shutdown=True

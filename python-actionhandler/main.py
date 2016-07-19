@@ -23,8 +23,12 @@ import pyactionhandler.ayehu.REST as rest
 redis.connection.socket = gevent.socket
 
 # Read config files
+jumpserver_config = ConfigParser()
+jumpserver_config.read('/opt/autopilot/conf/jumpserver.conf')
+
 ayehu_config = ConfigParser()
 ayehu_config.read('/opt/autopilot/conf/ayehu.conf')
+
 pmp_config = ConfigParser()
 pmp_config.read('/opt/autopilot/conf/pmp.conf')
 
@@ -63,11 +67,17 @@ capability_handlers={
 		'rest_api':rest_api
 	}),
 	"ExecuteWorkflowInBackground":(AyehuBackgroundAction, {}),
-	"ExecuteCommand":(WinRMCmdAction, {}),
-	"ExecutePowershell":(WinRMPowershellAction, {})
+	"ExecuteCommand":(WinRMCmdAction, {
+		'pmp_config':pmp_config,
+		'jumpserver_config':jumpserver_config
+	}),
+	"ExecutePowershell":(WinRMPowershellAction, {
+		'pmp_config':pmp_config,
+		'jumpserver_config':jumpserver_config
+	})
 }
 
-worker_collection = WorkerCollection(size_per_worker=10,max_idle=20)
+worker_collection = WorkerCollection(size_per_worker=10,max_idle=300)
 action_handler = SyncHandler(capability_handlers, worker_collection, zmq_url)
 
 # Start
@@ -86,6 +96,7 @@ def exit_gracefully():
 	print("Starting shutdown at {time}".format(time=time.strftime("%H:%M:%S", time.localtime())))
 	gevent.kill(input_loop)
 	gevent.idle()
+	worker_collection.shutdown_workers()
 	print("waiting for all workers to shutdown...")
 	while len(worker_collection.workers) > 0:
 		print("{num} worker(s) still active".format(num=len(worker_collection.workers)))

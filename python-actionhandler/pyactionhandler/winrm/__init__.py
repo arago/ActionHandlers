@@ -1,4 +1,5 @@
 import gevent
+import tempfile
 
 from pyactionhandler import Action
 from pyactionhandler.winrm.session import certSession
@@ -6,15 +7,45 @@ from pyactionhandler.winrm.script import Script
 
 from pyactionhandler.common.pmp import PMPSession, TokenAuth, PMPCredentials
 
-from winrm.exceptions import WinRMError, WinRMTransportError
+import winrm.exceptions
+import pyactionhandler.winrm.exceptions
+
+from configparser import NoSectionError, NoOptionError
+
+class AddPropertyMethodsMeta(type):
+	def __new__(cls, name, bases, dct, props, factory):
+		for prop in props:
+			dct[prop]=factory(prop)
+		return type(name, bases, dct)
+
+def make_prop(prop):
+	@property
+	def property_func(self):
+		try:
+			return self.config.get(self.name, prop)
+		except (NoSectionError, NoOptionError):
+			return self.config.get('default', prop)
+	return property_func
+
+class Jumpserver(
+		object, metaclass=AddPropertyMethodsMeta,
+		props=['PMP_Resource', 'PMP_WinRM_Account', 'PMP_SSH_Account'],
+		factory=make_prop):
+	def __init__(self, config, name):
+		self.config=config
+		self.name=name
 
 class WinRMCmdAction(Action):
-	def __init__(self, node, zmq_info, timeout, parameters, pmp_config,
-				 ssl=True):
+	def __init__(self, node, zmq_info, timeout, parameters,
+				 pmp_config, jumpserver_config, ssl=True):
 		super(WinRMCmdAction, self).__init__(
 			node, zmq_info, timeout, parameters)
+		self.jumpserver_config=jumpserver_config
 		self.pmp_config=pmp_config
 		self.ssl=ssl
+		if 'RemoteExecutionServer' in self.parameters:
+			self.jumpserver=Jumpserver(
+				jumpserver_config, parameters['RemoteExecutionServer'])
 
 	def init_direct_session(self, host, port, protocol, auth):
 		return certSession(
@@ -31,15 +62,15 @@ class WinRMCmdAction(Action):
 				protocol = jump_protocol,
 				hostname = jump_host,
 				port=jump_port),
-			auth=jump_auth,
+			certificate=jump_auth,
 			target=target_host,
 			target_auth=target_auth)
 
 	def init_pmp_session(self, pmp_endpoint, pmp_token):
-		return PMPSession(
-			pmp_endpoint,
-			auth=TokenAuth(pmp_token),
-			verify=False)
+		s = PMPSession(pmp_endpoint)
+		s.auth=TokenAuth(pmp_token)
+		s.verify=False
+		return s
 
 	def init_script(self,script):
 		return Script(
@@ -51,42 +82,53 @@ class WinRMCmdAction(Action):
 		return PMPCredentials(
 			pmp_session, ResourceName=resource, AccountName=account)
 
+	def winrm_run_script(self,winrm_session):
+		script=self.init_script(self.parameters['Command'])
+		try:
+			script.run(winrm_session)
+			self.output, self.error_output = script.get_outputs()
+			self.system_rc = script.rs.status_code
+			self.success=True
+		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, pyactionhandler.winrm.exceptions.WinRMError) as e:
+			self.statusmsg=str(e)
+
 	def __call__(self):
 
 		pmp_session=self.init_pmp_session(
-			pmp_endpoint=self.pmp_config('URL'),
-			pmp_token=self.pmp_config('Token'))
+			pmp_endpoint=self.pmp_config.get('default', 'URL'),
+			pmp_token=self.pmp_config.get('default', 'Token'))
+
 		target_auth=self.pmp_get_credentials(
 			pmp_session=pmp_session,
 			resource=self.parameters['Hostname'],
 			account=self.parameters['ServiceAccount'])
 
-		if 'RemoteExecutionServer' in parameters:
-			jump_auth=self.pmp_get_credentials(
+		if 'RemoteExecutionServer' in self.parameters:
+			cert=self.pmp_get_credentials(
 				pmp_session=pmp_session,
-				resource=self.parameters['RemoteExecutionServer'],
-				account='keine Ahnung!!!')
-			winrm_session=self.init_jump_session(
-				jump_host=self.parameters['RemoteExecutionServer'],
-				jump_protocol = 'https' if self.ssl else 'http',
-				jump_port = '5986' if self.ssl else '5985',
-				jump_auth = jump_auth,
-				target_host=self.parameters['Hostname'],
-				target_auth=target_auth)
+				resource=self.jumpserver.PMP_Resource,
+				account=self.jumpserver.PMP_WinRM_Account).ssl_cert
+			with tempfile.NamedTemporaryFile() as cert_file:
+				cert_file.write(cert)
+				winrm_session=self.init_jump_session(
+					jump_host=self.parameters['RemoteExecutionServer'],
+					jump_protocol = 'https' if self.ssl else 'http',
+					jump_port = '5986' if self.ssl else '5985',
+					jump_auth = cert_file.name,
+					target_host=self.parameters['Hostname'],
+					target_auth=target_auth)
+				self.winrm_run_script(winrm_session)
 		else:
 			winrm_session=self.init_direct_session(
 				host = self.parameters['Hostname'],
 				protocol = 'https' if self.ssl else 'http',
-				port = '5986' if self.ssl else 'http',
+				port = '5986' if self.ssl else '5985',
 				auth=target_auth)
-		script=self.init_script(self.parameters['Command'])
-		try:
-			script.run(winrm_session)
-			self.output, self.error_output = script.get_outputs()
-			self.systemrc = script.rs.status_code
-			self.success=True
-		except (WinRMError, WinRMTransportError) as e:
-			self.statusmsg=str(e)
+			self.winrm_run_script(winrm_session)
 
 class WinRMPowershellAction(WinRMCmdAction):
-	pass
+	def init_script(self,script):
+		return Script(
+			script=script,
+			interpreter='ps',
+			cols=120)

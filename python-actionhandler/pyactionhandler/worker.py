@@ -12,11 +12,11 @@ class Worker(object):
 		self.response_queue=response_queue
 		self.greenlets=[gevent.spawn(self.handle_actions, max_idle) for count in range(size)]
 		gevent.spawn(self.monitor)
-		print("New Worker for {node} created at {time}, can handle {size} tasks in parallel".format(node="x",time=time.strftime("%H:%M:%S", time.localtime()),size=size))
+		print("New Worker for {node} created at {time}, can handle {size} tasks in parallel".format(node=self.node,time=time.strftime("%H:%M:%S", time.localtime()),size=size))
 
 	def monitor(self):
 		gevent.joinall(self.greenlets)
-		print("Worker for {node} shutdown at {time}".format(node="x",time=time.strftime("%H:%M:%S", time.localtime())))
+		print("Worker for {node} shutdown at {time}".format(node=self.node,time=time.strftime("%H:%M:%S", time.localtime())))
 		self.collection.remove_worker(self)
 
 	def touch(self):
@@ -40,7 +40,6 @@ class Worker(object):
 			try:
 				with gevent.Timeout(action.timeout):
 					self.response_queue.put(action.__execute__())
-					print("action done")
 			except gevent.Timeout:
 				if callable(getattr(action, '__timeout__', None)):
 					action.__timeout__(action.timeout)
