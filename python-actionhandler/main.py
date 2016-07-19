@@ -77,7 +77,7 @@ capability_handlers={
 	})
 }
 
-worker_collection = WorkerCollection(size_per_worker=10,max_idle=300)
+worker_collection = WorkerCollection(size_per_worker=5,max_idle=300)
 action_handler = SyncHandler(capability_handlers, worker_collection, zmq_url)
 
 # Start
@@ -85,6 +85,7 @@ print("ready")
 #gevent.joinall([gevent.spawn(action_handler.handle_requests)])
 
 input_loop=gevent.spawn(action_handler.handle_requests)
+input_loop=gevent.spawn(action_handler.handle_requests_per_worker)
 output_loop=gevent.spawn(action_handler.handle_responses)
 
 server = pywsgi.WSGIServer(

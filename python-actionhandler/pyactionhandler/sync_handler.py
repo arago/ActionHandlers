@@ -14,6 +14,7 @@ class SyncHandler(object):
 		self.zmq_ctx = zmq.Context()
 		self.zmq_socket = self.zmq_ctx.socket(zmq.ROUTER)
 		self.zmq_socket.bind(self.zmq_url)
+		self.request_queue=gevent.queue.JoinableQueue(maxsize=3)
 		self.response_queue=gevent.queue.JoinableQueue(maxsize=0)
 
 	def next_request(self):
@@ -35,7 +36,23 @@ class SyncHandler(object):
 		try:
 			print("Started handling requests")
 			while not self.shutdown:
+				if self.request_queue.unfinished_tasks >= 3:
+					gevent.idle()
+					continue
 				capability, timeout, params, zmq_info = self.next_request()
+				print("putting action on overall queue")
+				self.request_queue.put((capability, timeout, params, zmq_info))
+				print(self.request_queue.unfinished_tasks)
+		except GreenletExit as e:
+			## Block all further incoming messages
+			print("Stopped handling requests")
+
+	def handle_requests_per_worker(self):
+		try:
+			print("Started handling requests")
+			while not self.shutdown:
+				capability, timeout, params, zmq_info = self.request_queue.get()
+				print("putting action on worker queue")
 				try:
 					self.worker_collection.get_worker(
 						params['NodeID'], self.response_queue).add_action(
@@ -49,7 +66,6 @@ class SyncHandler(object):
 					print("Unknown capability")
 		except GreenletExit as e:
 			## Block all further incoming messages
-			self.zmq_socket.setsockopt(zmq.RCVHWM, 0)
 			print("Stopped handling requests")
 
 	def handle_responses(self):
@@ -65,8 +81,11 @@ class SyncHandler(object):
 				resp.statusmsg = action.statusmsg
 				resp.success = action.success
 				self.zmq_socket.send_multipart((id1, id2, svc_call, resp.SerializeToString()))
+				self.request_queue.task_done()
 				del id1, id2, svc_call, resp
+				print("removing action from overall queue")
 				self.response_queue.task_done()
+				print(self.request_queue.unfinished_tasks)
 		except GreenletExit as e:
 			print("Stopped handling responses")
 
