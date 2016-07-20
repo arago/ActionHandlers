@@ -93,7 +93,7 @@ action_classes={
 }
 
 worker_collection = WorkerCollection(
-	action_classes, size=7, size_per_worker=5, max_idle=300)
+	action_classes, size=10, size_per_worker=5, max_idle=300)
 action_handler = SyncHandler(worker_collection, zmq_url)
 
 # Start
@@ -114,11 +114,11 @@ def exit_gracefully():
 	logger.info("Waiting for all workers to shutdown...")
 	while len(worker_collection.workers) > 0:
 		logger.debug("{num} worker(s) still active".format(num=len(worker_collection.workers)))
-		gevent.sleep(2)
+		gevent.sleep(1)
 	logger.info("Waiting for all responses to be delivered...")
 	while action_handler.response_queue.unfinished_tasks > 0:
 		logger.debug("{num} responses to be delivered".format(num=action_handler.response_queue.unfinished_tasks))
-		gevent.sleep(2)
+		gevent.sleep(1)
 	gevent.kill(output_loop)
 	gevent.idle()
 	logger.info("Finished shutdown")
@@ -126,6 +126,6 @@ def exit_gracefully():
 
 gevent.hub.signal(signal.SIGINT, exit_gracefully)
 gevent.hub.signal(signal.SIGTERM, exit_gracefully)
-gevent.sleep(0.5)
+gevent.idle()
 logger.info('ActionHandler started')
 server.serve_forever()

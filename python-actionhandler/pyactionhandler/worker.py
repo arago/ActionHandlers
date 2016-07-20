@@ -18,7 +18,7 @@ class Worker(object):
 
 	def monitor(self):
 		gevent.joinall(self.greenlets)
-		self.logger.info("Worker for {node} shutdown")
+		self.logger.info("Worker for %s shutdown" % self.node)
 		self.collection.remove_worker(self)
 
 	def touch(self):
@@ -35,7 +35,7 @@ class Worker(object):
 			return self.task_queue.unfinished_tasks == 0
 		while not idle() or not expired() and not self.shutdown:
 			try:
-				with gevent.Timeout(1):
+				with gevent.Timeout(0.1):
 					action=self.task_queue.get()
 			except gevent.Timeout:
 				continue

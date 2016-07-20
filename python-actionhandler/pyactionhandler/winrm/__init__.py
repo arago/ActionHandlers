@@ -82,8 +82,8 @@ class WinRMCmdAction(Action):
 	def init_script(self,script):
 		return Script(
 			script=script,
-			cols=120)
 			interpreter='cmd',
+			cols=120)
 
 	def pmp_get_credentials(self, pmp_session, resource, account):
 		return PMPCredentials(
@@ -98,7 +98,7 @@ class WinRMCmdAction(Action):
 			self.success=True
 		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, pyactionhandler.winrm.exceptions.WinRMError) as e:
 			self.statusmsg=str(e)
-			self.logger.error("An error occured during command execution: %s" % str(e))
+			self.logger.error("An error occured during command execution on {node}: {err}".format(node=self.node,err=str(e)))
 
 	def __call__(self):
 
@@ -152,3 +152,8 @@ class WinRMPowershellAction(WinRMCmdAction):
 			script=script,
 			interpreter='ps',
 			cols=120)
+
+	def __str__(self):
+		return "powershell.exe command '{cmd}' on '{node}'".format(
+			cmd=self.parameters['Command'],
+			node=self.parameters['Hostname'])

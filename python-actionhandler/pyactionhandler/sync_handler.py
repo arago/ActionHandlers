@@ -10,7 +10,6 @@ import logging
 class SyncHandler(object):
 	def __init__(self, worker_collection, zmq_url):
 		self.logger = logging.getLogger('actionhandler')
-		self.shutdown=False
 		self.worker_collection=worker_collection
 		self.zmq_url=zmq_url
 		self.zmq_ctx = zmq.Context()
@@ -39,7 +38,10 @@ class SyncHandler(object):
 	def handle_requests(self):
 		try:
 			self.logger.info("Started handling requests")
-			while not self.shutdown:
+			while True:
+				if self.worker_collection.task_queue.unfinished_tasks >= self.worker_collection.size:
+					gevent.sleep(0.1)
+					continue
 				try:
 					capability, timeout, params, zmq_info = self.next_request()
 				except (DecodeRPCError):
