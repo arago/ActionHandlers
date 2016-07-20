@@ -11,6 +11,9 @@ import gevent.hub
 import signal
 import time
 
+import logging
+import logging.config
+
 from configparser import ConfigParser
 
 from pyactionhandler import WorkerCollection, SyncHandler
@@ -19,6 +22,18 @@ from pyactionhandler.winrm import WinRMCmdAction, WinRMPowershellAction
 from pyactionhandler.ayehu.zeep_redis_cache import RedisCache
 
 import pyactionhandler.ayehu.REST as rest
+
+logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler_log.conf')
+
+# create logger
+logger = logging.getLogger('root')
+
+# 'application' code
+# logger.debug('debug message')
+# logger.info('info message')
+# logger.warn('warn message')
+# logger.error('error message')
+# logger.critical('critical message')
 
 redis.connection.socket = gevent.socket
 
@@ -58,7 +73,7 @@ zeep_client = zeep.Client(
 rest_api = rest.RESTAPI(baseurl=ayehu_config.get('default', 'CallbackBaseURL'), redis=commands_redis, pubsub=commands_pubsub)
 
 # Setup capabilities with their action class
-capability_handlers={
+action_classes={
 	"ExecuteWorkflow":(AyehuAction, {
 		'zeep_client':zeep_client,
 		'redis':commands_redis,
@@ -77,15 +92,13 @@ capability_handlers={
 	})
 }
 
-worker_collection = WorkerCollection(size_per_worker=5,max_idle=300)
-action_handler = SyncHandler(capability_handlers, worker_collection, zmq_url)
+worker_collection = WorkerCollection(
+	action_classes, size=7, size_per_worker=5, max_idle=300)
+action_handler = SyncHandler(worker_collection, zmq_url)
 
 # Start
-print("ready")
-#gevent.joinall([gevent.spawn(action_handler.handle_requests)])
-
 input_loop=gevent.spawn(action_handler.handle_requests)
-input_loop=gevent.spawn(action_handler.handle_requests_per_worker)
+worker_loop=gevent.spawn(worker_collection.handle_requests_per_worker)
 output_loop=gevent.spawn(action_handler.handle_responses)
 
 server = pywsgi.WSGIServer(
@@ -94,25 +107,25 @@ server = pywsgi.WSGIServer(
 
 
 def exit_gracefully():
-	print("Starting shutdown at {time}".format(time=time.strftime("%H:%M:%S", time.localtime())))
+	logger.info("Starting shutdown")
 	gevent.kill(input_loop)
 	gevent.idle()
 	worker_collection.shutdown_workers()
-	print("waiting for all workers to shutdown...")
+	logger.info("Waiting for all workers to shutdown...")
 	while len(worker_collection.workers) > 0:
-		print("{num} worker(s) still active".format(num=len(worker_collection.workers)))
-		gevent.sleep(10)
-	print("waiting for all responses to be delivered...")
+		logger.debug("{num} worker(s) still active".format(num=len(worker_collection.workers)))
+		gevent.sleep(2)
+	logger.info("Waiting for all responses to be delivered...")
 	while action_handler.response_queue.unfinished_tasks > 0:
-		print("{num} responses to be delivered".format(num=action_handler.response_queue.unfinished_tasks))
-		gevent.sleep(10)
+		logger.debug("{num} responses to be delivered".format(num=action_handler.response_queue.unfinished_tasks))
+		gevent.sleep(2)
 	gevent.kill(output_loop)
 	gevent.idle()
-	print("Finished shutdown at {time}".format(time=time.strftime("%H:%M:%S", time.localtime())))
-	print("Exiting...")
+	logger.info("Finished shutdown")
 	sys.exit()
 
 gevent.hub.signal(signal.SIGINT, exit_gracefully)
 gevent.hub.signal(signal.SIGTERM, exit_gracefully)
-
+gevent.sleep(0.5)
+logger.info('ActionHandler started')
 server.serve_forever()
