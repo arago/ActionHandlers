@@ -72,11 +72,12 @@ class ActionHandlerDaemon(daemon):
 					'pmp_config':pmp_config,
 					'rest_api':rest_api}),
 				 "ExecuteWorkflowInBackground":(AyehuBackgroundAction, {})},
-				parallel_tasks=50,
-				parallel_tasks_per_worker=10,
-				worker_max_idle=300),
-			zmq_url=actionhandler_config.get('default', 'ZMQ_URL'))]
-
+				parallel_tasks = actionhandler_config.getint(
+					'default', 'ParallelTasks', fallback=10),
+				parallel_tasks_per_worker = actionhandler_config.getint(
+					'default', 'ParallelTasksPerWorker', fallback=10),
+				worker_max_idle = actionhandler_config.getint('default', 'WorkerMaxIdle', fallback=300)),
+			zmq_url = actionhandler_config.get('default', 'ZMQ_URL'))]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")

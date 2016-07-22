@@ -38,10 +38,12 @@ class ActionHandlerDaemon(daemon):
 				 "ExecutePowershell":(WinRMPowershellAction, {
 					 'pmp_config':pmp_config,
 					 'jumpserver_config':jumpserver_config})},
-				parallel_tasks=10,
-				parallel_tasks_per_worker=5,
-				worker_max_idle=300),
-			zmq_url=actionhandler_config.get('default', 'ZMQ_URL'))]
+				parallel_tasks = actionhandler_config.getint(
+					'default', 'ParallelTasks', fallback=5),
+				parallel_tasks_per_worker = actionhandler_config.getint(
+					'default', 'ParallelTasksPerWorker', fallback=5),
+				worker_max_idle = actionhandler_config.getint('default', 'WorkerMaxIdle', fallback=300)),
+			zmq_url = actionhandler_config.get('default', 'ZMQ_URL'))]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")

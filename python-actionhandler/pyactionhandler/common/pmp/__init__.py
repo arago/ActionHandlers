@@ -15,7 +15,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 def addBaseURL(function):
 	def wrapper(self, *args, **kwargs):
 		if args:
-			args = (self._baseurl + args[0],)
+			args = (self._baseurl + args[0],) + args[1:]
 		if 'url' in kwargs:
 			kwargs['url'] = self._baseurl + kwargs['url']
 		return function(self, *args, **kwargs)
