@@ -5,47 +5,12 @@ import json
 import codecs
 import re
 from pyactionhandler.common.pmp.exceptions import PMPError, PMPConnectionError
+from pyactionhandler.helper import addBaseURL
+from pyactionhandler.meta import ExtendByDecoratorMeta
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
-# baseurl decorator, adds baseurl to first positional argument
-# or "url" keyword argument
-def addBaseURL(function):
-	def wrapper(self, *args, **kwargs):
-		if args:
-			args = (self._baseurl + args[0],) + args[1:]
-		if 'url' in kwargs:
-			kwargs['url'] = self._baseurl + kwargs['url']
-		return function(self, *args, **kwargs)
-	return wrapper
-
-class ExtendByDecoratorMeta(type):
-	def __new__(cls, name, bases, d, methodsToDecorate, ignoreUnknownMethods=False):
-
-		def not_implemented(*args, **kwargs):
-			raise NotImplementedError('You called a function that is not'
-			                          ' implemented!')
-
-		# find method in base classes
-		def find_method(m):
-			for base in bases:
-				try:
-					return getattr(base, m)
-				except AttributeError:
-					pass
-				if ignoreUnknownMethods:
-					return not_implemented
-				else:
-					raise AttributeError(
-						"No bases have method '{}'".format(m))
-
-		# decorate specified methods with given decorator
-		for decorator in methodsToDecorate:
-			for method in methodsToDecorate[decorator]:
-				d[method] = decorator(find_method(method))
-		return type(name, bases, d)
 
 class PMPSession(requests.Session, metaclass=ExtendByDecoratorMeta, methodsToDecorate = {addBaseURL:['get','post', 'stub']}, ignoreUnknownMethods = True):
 

@@ -1,14 +1,6 @@
-from configparser import ConfigParser, NoSectionError, NoOptionError
+from configparser import ConfigParser
+from pyactionhandler.meta import ExtendByDecoratorMetaABC
+from pyactionhandler.helper import fallback
 
-class FallbackConfigParser(ConfigParser):
-	def get(self, *args, **kwargs):
-		try:
-			return super(FallbackConfigParser, self).get(*args, **kwargs)
-		except (NoSectionError, NoOptionError):
-			return super(FallbackConfigParser, self).get('default', args[1], **kwargs)
-
-	def getint(self, *args, **kwargs):
-		try:
-			return super(FallbackConfigParser, self).getint(*args, **kwargs)
-		except (NoSectionError, NoOptionError):
-			return super(FallbackConfigParser, self).getint('default', args[1], **kwargs)
+class FallbackConfigParser(ConfigParser, metaclass=ExtendByDecoratorMetaABC, methodsToDecorate = {fallback:['get','getint', 'getfloat']}, ignoreUnknownMethods = True):
+	pass

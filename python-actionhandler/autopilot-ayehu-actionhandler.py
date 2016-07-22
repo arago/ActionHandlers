@@ -89,7 +89,6 @@ class ActionHandlerDaemon(daemon):
 
 		gevent.hub.signal(signal.SIGINT, exit_gracefully)
 		gevent.hub.signal(signal.SIGTERM, exit_gracefully)
-		# ActionHandlers:
 		greenlets=[action_handler.run() for action_handler in action_handlers]
 		gevent.idle()
 		server.serve_forever()

@@ -1,3 +1,5 @@
+from configparser import NoSectionError, NoOptionError
+
 def decode_rpc_call(message):
 	def parse_protobuf(message):
 		bitmask = 0b00000111
@@ -21,3 +23,21 @@ def decode_rpc_call(message):
 	except NotImplementedError:
 		raise DecodeRPCError("Message does not contain a method call")
 	return service, method
+
+def addBaseURL(function):
+	def wrapper(self, *args, **kwargs):
+		if args:
+			args = (self._baseurl + args[0],) + args[1:]
+		if 'url' in kwargs:
+			kwargs['url'] = self._baseurl + kwargs['url']
+		return function(self, *args, **kwargs)
+	return wrapper
+
+def fallback(function):
+	def wrapper(self, *args, **kwargs):
+		try:
+			return function(self, *args, **kwargs)
+		except (NoSectionError, NoOptionError):
+			args=('default',) + args[1:]
+			return function(self, *args, **kwargs)
+	return wrapper
