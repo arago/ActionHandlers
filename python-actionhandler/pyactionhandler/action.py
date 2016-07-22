@@ -18,7 +18,8 @@ class Action(object):
 	def __execute__(self):
 		try:
 			self()
-		except:
+		except Exception as e:
+			self.logger.debug(e)
 			self.statusmsg="ACTIONHANDLER CRASHED!!!\n{tb}".format(
 				tb=traceback.format_exc())
 			self.success=False

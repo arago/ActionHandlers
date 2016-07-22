@@ -51,4 +51,4 @@ class WorkerCollection(object):
 							params,
 							**self.action_classes[capability][1]))
 			except KeyError:
-				self.logger.error("Unknown capability")
+				self.logger.error("Unknown capability {cap}".format(cap=capability))

@@ -8,6 +8,7 @@ class Worker(object):
 	def __init__(self, collection, node, response_queue, size=10, max_idle=300):
 		self.logger = logging.getLogger('worker')
 		self.shutdown=False
+		self.touch()
 		self.node=node
 		self.collection=collection
 		self.task_queue=gevent.queue.JoinableQueue(maxsize=0)
@@ -43,7 +44,7 @@ class Worker(object):
 			self.touch()
 			try:
 				with gevent.Timeout(action.timeout):
-					self.logger.debug("[{anum}] Executing Action: {action}".format(
+					self.logger.debug("[{anum}] Executing {action}".format(
 						anum=action.num, action=action))
 					self.response_queue.put(action.__execute__())
 			except gevent.Timeout:

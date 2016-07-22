@@ -8,6 +8,7 @@ import shlex
 import json
 import uuid
 import greenlet
+import logging
 
 from pyactionhandler import Action
 
@@ -15,17 +16,18 @@ from pyactionhandler.ayehu.exceptions import AyehuAHError, ExitTwiceError, Resou
 
 class AyehuAction(Action):
 	def __init__(self, num, node, zmq_info, timeout, parameters,
-				 zeep_client, redis, ayehu_config, pmp_config,
+				 zeep_transport, redis, ayehu_config, pmp_config,
 				 rest_api):
 		super(AyehuAction, self).__init__(
 			num, node, zmq_info, timeout, parameters)
 		self.logger = logging.getLogger('worker')
-		self.zeep_client=zeep_client
 		self.redis=redis
 		self.ayehu_config=ayehu_config
 		self.pmp_config=pmp_config
 		self.rest_api=rest_api
-		self.baseurl=self.ayehu_config.get('default', 'CallbackBaseURL')
+		self.customer = parameters['CustomerID'] if 'CustomerID' in parameters else 'default'
+		self.zeep_client = zeep.Client(
+				ayehu_config.get(self.customer, 'URL'),transport=zeep_transport)
 		try:
 			command_usage=u"""
 Usage:
@@ -40,10 +42,10 @@ Usage:
 				'Customer':parameters['CustomerID'],
 				'ServiceAccount':parameters['User'],
 				'PMPServer':self.pmp_config.get(
-					'default', 'URL'),
+					self.customer, 'URL'),
 				'IncidentID':parameters['Ticket'],
 				'CallbackURL':"{baseurl}/commands/{{id}}".format(
-					baseurl=self.baseurl)
+					baseurl=self.rest_api.baseurl)
 			}
 		except Exception as e:
 			self.logger.warning("[{anum}] Error parsing command '{cmd}': {err}".format(anum=self.num, cmd=self.parameters['Command'], err=e))
@@ -54,9 +56,12 @@ Usage:
 	def __shutdown__(self):
 		self.rest_api.command.delete(self.cmdid)
 
+	def __str__(self):
+		return "Ayehu command '{cmd}' on '{node}'".format(
+			cmd=self.parameters['Command'],
+			node=self.node)
+
 	def __call__(self):
-		self.logger.debug("[{anum}] Executing command '{task}' on '{node}'".format(
-			anum=self.num, task=self.parameters['Command'], node=self.info['DeviceID']))
 		# pubsub object must be greenlet-local
 		self.pubsub=self.redis.pubsub(ignore_subscribe_messages=True)
 
@@ -70,13 +75,13 @@ Usage:
 			id=self.cmdid)
 		try:
 			self.zeep_client.service.EyeShareWebService_Incident_Format(
-				self.ayehu_config.get('default', 'EyeshareIP'),
-				self.ayehu_config.get('default', 'Source'),
+				self.ayehu_config.get(self.customer, 'EyeshareIP'),
+				self.ayehu_config.get(self.customer, 'Source'),
 				self.info['DeviceID'],
 				self.parameters['Classification'],
 				json.dumps(self.info),
-				self.ayehu_config.get('default', 'State'),
-				self.ayehu_config.get('default', 'Severity'))
+				self.ayehu_config.get(self.customer, 'State'),
+				self.ayehu_config.get(self.customer, 'Severity'))
 		except (TransportError, ConnectionError) as e:
 			self.rest_api.command.delete(self.cmdid)
 			self.logger.error("[{anum}] Error when creating incident in Ayehu: {err}".format(

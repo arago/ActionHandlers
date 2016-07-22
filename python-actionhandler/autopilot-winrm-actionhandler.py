@@ -9,22 +9,26 @@ import time
 from docopt import docopt
 import logging
 import logging.config
-from configparser import ConfigParser
+from pyactionhandler.configparser import FallbackConfigParser as ConfigParser
 from pyactionhandler import WorkerCollection, SyncHandler
 from pyactionhandler.winrm import WinRMCmdAction, WinRMPowershellAction
 from pyactionhandler.daemon import daemon
 
 class ActionHandlerDaemon(daemon):
 	def run(self):
-		logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler_log.conf')
+
+		actionhandler_config=ConfigParser()
+		actionhandler_config.read('/opt/autopilot/conf/pyactionhandler/winrm-actionhandler.conf')
+
+		logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler/winrm-actionhandler-log.conf')
 		logger = logging.getLogger('root')
 
 		# Read config files
 		jumpserver_config = ConfigParser()
-		jumpserver_config.read('/opt/autopilot/conf/jumpserver.conf')
+		jumpserver_config.read('/opt/autopilot/conf/pyactionhandler/winrm-actionhandler-jumpserver.conf')
 
 		pmp_config = ConfigParser()
-		pmp_config.read('/opt/autopilot/conf/pmp.conf')
+		pmp_config.read('/opt/autopilot/conf/pyactionhandler/pmp.conf')
 
 		action_handlers = [SyncHandler(
 			WorkerCollection(
@@ -34,10 +38,10 @@ class ActionHandlerDaemon(daemon):
 				 "ExecutePowershell":(WinRMPowershellAction, {
 					 'pmp_config':pmp_config,
 					 'jumpserver_config':jumpserver_config})},
-				parallel_tasks=5,
+				parallel_tasks=10,
 				parallel_tasks_per_worker=5,
 				worker_max_idle=300),
-			zmq_url="tcp://127.0.0.1:7290")]
+			zmq_url=actionhandler_config.get('default', 'ZMQ_URL'))]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")
