@@ -2,14 +2,8 @@ import requests
 import urllib.parse as urlparse
 import urllib
 import json
-#import pprint
-#from docopt import docopt
-#from schema import Schema, Or, And, Optional, Use
 import codecs
-#import schema
-#import sys
 import re
-#from configparser import ConfigParser
 from pyactionhandler.common.pmp.exceptions import PMPError, PMPConnectionError
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning

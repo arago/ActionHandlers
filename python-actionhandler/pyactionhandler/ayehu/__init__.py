@@ -14,11 +14,12 @@ from pyactionhandler import Action
 from pyactionhandler.ayehu.exceptions import AyehuAHError, ExitTwiceError, ResourceNotExistsError
 
 class AyehuAction(Action):
-	def __init__(self, node, zmq_info, timeout, parameters,
+	def __init__(self, num, node, zmq_info, timeout, parameters,
 				 zeep_client, redis, ayehu_config, pmp_config,
 				 rest_api):
 		super(AyehuAction, self).__init__(
-			node, zmq_info, timeout, parameters)
+			num, node, zmq_info, timeout, parameters)
+		self.logger = logging.getLogger('worker')
 		self.zeep_client=zeep_client
 		self.redis=redis
 		self.ayehu_config=ayehu_config
@@ -45,7 +46,7 @@ Usage:
 					baseurl=self.baseurl)
 			}
 		except Exception as e:
-			print (e)
+			self.logger.warning("[{anum}] Error parsing command '{cmd}': {err}".format(anum=self.num, cmd=self.parameters['Command'], err=e))
 
 	def __timeout__(self, seconds):
 		self.rest_api.command.delete(self.cmdid)
@@ -54,8 +55,8 @@ Usage:
 		self.rest_api.command.delete(self.cmdid)
 
 	def __call__(self):
-		print("Executing command '{task}' on {node}".format(
-			task=self.info['TaskKeywords'], node=self.info['DeviceID']))
+		self.logger.debug("[{anum}] Executing command '{task}' on '{node}'".format(
+			anum=self.num, task=self.parameters['Command'], node=self.info['DeviceID']))
 		# pubsub object must be greenlet-local
 		self.pubsub=self.redis.pubsub(ignore_subscribe_messages=True)
 
@@ -76,12 +77,10 @@ Usage:
 				json.dumps(self.info),
 				self.ayehu_config.get('default', 'State'),
 				self.ayehu_config.get('default', 'Severity'))
-		except TransportError as e:
+		except (TransportError, ConnectionError) as e:
 			self.rest_api.command.delete(self.cmdid)
-			print (e)
-		except ConnectionError as e:
-			self.rest_api.command.delete(self.cmdid)
-			print (e)
+			self.logger.error("[{anum}] Error when creating incident in Ayehu: {err}".format(
+				anum=self.num, err=e))
 
 	def create_rest_resource(self):
 		self.cmdid = self.rest_api.collection.post(self.info)

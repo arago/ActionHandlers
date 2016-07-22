@@ -2,8 +2,9 @@ import traceback
 import logging
 
 class Action(object):
-	def __init__(self, node, zmq_info, timeout, parameters):
+	def __init__(self, num, node, zmq_info, timeout, parameters):
 		self.logger = logging.getLogger('worker')
+		self.num=num
 		self.node=node
 		self.zmq_info=zmq_info
 		self.parameters=parameters
