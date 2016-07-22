@@ -10,7 +10,7 @@ import logging
 
 class SyncHandler(object):
 	def __init__(self, worker_collection, zmq_url):
-		self.logger = logging.getLogger('actionhandler')
+		self.logger = logging.getLogger('root')
 		self.worker_collection=worker_collection
 		self.zmq_url=zmq_url
 		self.zmq_ctx = zmq.Context()

@@ -13,14 +13,10 @@ import time
 from docopt import docopt
 import logging
 import logging.config
-from pyactionhandler.configparser import FallbackConfigParser as ConfigParser
-from pyactionhandler import WorkerCollection, SyncHandler
-from pyactionhandler.ayehu import AyehuAction, AyehuBackgroundAction
-from pyactionhandler.ayehu.zeep_redis_cache import RedisCache
-import pyactionhandler.ayehu.REST as rest
-from pyactionhandler.daemon import daemon
+from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon
+from pyactionhandler.ayehu import AyehuAction, AyehuBackgroundAction, RESTAPI, RedisCache
 
-class ActionHandlerDaemon(daemon):
+class ActionHandlerDaemon(Daemon):
 	def run(self):
 
 		actionhandler_config=ConfigParser()
@@ -28,6 +24,15 @@ class ActionHandlerDaemon(daemon):
 
 		logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler/ayehu-actionhandler-log.conf')
 		logger = logging.getLogger('root')
+		if self.debug:
+			logger.setLevel(logging.DEBUG)
+			ch = logging.StreamHandler()
+			ch.setLevel(logging.DEBUG)
+			formatter = logging.Formatter(
+				"%(asctime)s [%(levelname)s] %(message)s","%Y-%m-%d %H:%M:%S")
+			ch.setFormatter(formatter)
+			logger.addHandler(ch)
+			logger.info("Logging also to console")
 
 		redis.connection.socket = gevent.socket
 
@@ -39,24 +44,24 @@ class ActionHandlerDaemon(daemon):
 
 		# Redis datastore for commands handed to Ayehu
 		commands_redis = redis.StrictRedis(
-			host=actionhandler_config.get('default', 'CommandsRedisHost'),
-			port=actionhandler_config.get('default', 'CommandsRedisPort'),
-			db=actionhandler_config.get('default', 'CommandsRedisDB'),
+			host=actionhandler_config.get('RESTInterface', 'RedisHost'),
+			port=actionhandler_config.get('RESTInterface', 'RedisPort'),
+			db=actionhandler_config.get('RESTInterface', 'RedisDB'),
 			charset = "utf-8",
 			decode_responses = True)
 		commands_pubsub = commands_redis.pubsub(ignore_subscribe_messages=True)
 
 		# Redis datastore for zeep's cache
 		zeep_cache_redis = redis.StrictRedis(
-			host=actionhandler_config.get('default', 'ZeepCacheRedisHost'),
-			port=actionhandler_config.get('default', 'ZeepCacheRedisPort'),
-			db=actionhandler_config.get('default', 'ZeepCacheRedisDB'))
+			host=actionhandler_config.get('SOAPClient', 'RedisHost'),
+			port=actionhandler_config.get('SOAPClient', 'RedisPort'),
+			db=actionhandler_config.get('SOAPClient', 'RedisDB'))
 		zeep_cache = RedisCache(timeout=3600, redis=zeep_cache_redis)
 		zeep_transport = zeep.transports.Transport(cache=zeep_cache)
 
 		# Setup REST API for callback
-		rest_api = rest.RESTAPI(
-			baseurl=actionhandler_config.get('default', 'CallbackBaseURL'),
+		rest_api = RESTAPI(
+			baseurl=actionhandler_config.get('RESTInterface', 'CallbackBaseURL'),
 			redis=commands_redis,
 			pubsub=commands_pubsub)
 
@@ -65,19 +70,19 @@ class ActionHandlerDaemon(daemon):
 
 		action_handlers = [SyncHandler(
 			WorkerCollection(
-				{"ExecuteWorkflow":(AyehuAction, {
-					'zeep_transport':zeep_transport,
-					'redis':commands_redis,
-					'ayehu_config':ayehu_config,
-					'pmp_config':pmp_config,
-					'rest_api':rest_api}),
-				 "ExecuteWorkflowInBackground":(AyehuBackgroundAction, {})},
+				{"ExecuteWorkflow":Capability(AyehuAction,
+					zeep_transport=zeep_transport,
+					redis=commands_redis,
+					ayehu_config=ayehu_config,
+					pmp_config=pmp_config,
+					rest_api=rest_api),
+				 "ExecuteWorkflowInBackground":Capability(AyehuBackgroundAction)},
 				parallel_tasks = actionhandler_config.getint(
-					'default', 'ParallelTasks', fallback=10),
+					'ActionHandler', 'ParallelTasks', fallback=10),
 				parallel_tasks_per_worker = actionhandler_config.getint(
-					'default', 'ParallelTasksPerWorker', fallback=10),
-				worker_max_idle = actionhandler_config.getint('default', 'WorkerMaxIdle', fallback=300)),
-			zmq_url = actionhandler_config.get('default', 'ZMQ_URL'))]
+					'ActionHandler', 'ParallelTasksPerWorker', fallback=10),
+				worker_max_idle = actionhandler_config.getint('ActionHandler', 'WorkerMaxIdle', fallback=300)),
+			zmq_url = actionhandler_config.get('ActionHandler', 'ZMQ_URL'))]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")
@@ -100,16 +105,14 @@ if __name__ == "__main__":
   {progname} [options] (start|stop|restart)
 
 Options:
+  --debug            do not run as daemon and log to stderr
   --pidfile=PIDFILE  Specify pid file [default: /var/run/{progname}.pid]
   -h --help          Show this help screen
 """.format(progname='autopilot-ayehu-actionhandler')
 
 	args=docopt(usage)
-	daemon = ActionHandlerDaemon(args['--pidfile'])
-	if args['start']:
-		daemon.start()
-	elif args['stop']:
-		daemon.stop()
-	elif args['restart']:
-		daemon.restart()
+	daemon = ActionHandlerDaemon(args['--pidfile'], debug=args['--debug'])
+	if args['start']: daemon.start()
+	elif args['stop']: daemon.stop()
+	elif args['restart']: daemon.restart()
 	sys.exit(0)

@@ -18,7 +18,7 @@ class WinRMCmdAction(Action):
 				 pmp_config, jumpserver_config, ssl=True):
 		super(WinRMCmdAction, self).__init__(
 			num, node, zmq_info, timeout, parameters)
-		self.logger = logging.getLogger('worker')
+		self.logger = logging.getLogger('root')
 		self.pmp_config=pmp_config
 		self.jumpserver_config=jumpserver_config
 		self.jumpserver = parameters['RemoteExecutionServer'] if 'RemoteExecutionServer' in parameters else None

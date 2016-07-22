@@ -6,7 +6,7 @@ import logging
 
 class Worker(object):
 	def __init__(self, collection, node, response_queue, size=10, max_idle=300):
-		self.logger = logging.getLogger('worker')
+		self.logger = logging.getLogger('root')
 		self.shutdown=False
 		self.touch()
 		self.node=node
@@ -18,13 +18,16 @@ class Worker(object):
 		self.logger.info("New Worker for {node} created at {time}, can handle {size} tasks in parallel".format(
 			node=self.node,time=time.strftime("%H:%M:%S", time.localtime()),size=size))
 
+	def __enter__(self): return self
+
+	def __exit__(self, type, value, traceback): pass
+
 	def monitor(self):
 		gevent.joinall(self.greenlets)
 		self.logger.info("Worker for %s shutdown" % self.node)
 		self.collection.remove_worker(self)
 
-	def touch(self):
-		self.mtime=time.time()
+	def touch(self): self.mtime=time.time()
 
 	def add_action(self, action):
 		self.task_queue.put(action)
@@ -44,7 +47,7 @@ class Worker(object):
 			self.touch()
 			try:
 				with gevent.Timeout(action.timeout):
-					self.logger.debug("[{anum}] Executing {action}".format(
+					self.logger.info("[{anum}] Executing {action}".format(
 						anum=action.num, action=action))
 					self.response_queue.put(action.__execute__())
 			except gevent.Timeout:

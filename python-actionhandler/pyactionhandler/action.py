@@ -3,7 +3,7 @@ import logging
 
 class Action(object):
 	def __init__(self, num, node, zmq_info, timeout, parameters):
-		self.logger = logging.getLogger('worker')
+		self.logger = logging.getLogger('root')
 		self.num=num
 		self.node=node
 		self.zmq_info=zmq_info

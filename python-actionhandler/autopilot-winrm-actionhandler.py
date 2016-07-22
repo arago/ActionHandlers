@@ -9,12 +9,10 @@ import time
 from docopt import docopt
 import logging
 import logging.config
-from pyactionhandler.configparser import FallbackConfigParser as ConfigParser
-from pyactionhandler import WorkerCollection, SyncHandler
+from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon
 from pyactionhandler.winrm import WinRMCmdAction, WinRMPowershellAction
-from pyactionhandler.daemon import daemon
 
-class ActionHandlerDaemon(daemon):
+class ActionHandlerDaemon(Daemon):
 	def run(self):
 
 		actionhandler_config=ConfigParser()
@@ -22,6 +20,15 @@ class ActionHandlerDaemon(daemon):
 
 		logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler/winrm-actionhandler-log.conf')
 		logger = logging.getLogger('root')
+		if self.debug:
+			logger.setLevel(logging.DEBUG)
+			ch = logging.StreamHandler()
+			ch.setLevel(logging.DEBUG)
+			formatter = logging.Formatter(
+				"%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S")
+			ch.setFormatter(formatter)
+			logger.addHandler(ch)
+			logger.info("Logging also to console")
 
 		# Read config files
 		jumpserver_config = ConfigParser()
@@ -32,18 +39,18 @@ class ActionHandlerDaemon(daemon):
 
 		action_handlers = [SyncHandler(
 			WorkerCollection(
-				{"ExecuteCommand":(WinRMCmdAction, {
-					 'pmp_config':pmp_config,
-					 'jumpserver_config':jumpserver_config}),
-				 "ExecutePowershell":(WinRMPowershellAction, {
-					 'pmp_config':pmp_config,
-					 'jumpserver_config':jumpserver_config})},
+				{"ExecuteCommand":Capability(WinRMCmdAction,
+											 pmp_config=pmp_config,
+											 jumpserver_config=jumpserver_config),
+				 "ExecutePowershell":Capability(WinRMPowershellAction,
+												pmp_config=pmp_config,
+												jumpserver_config=jumpserver_config)},
 				parallel_tasks = actionhandler_config.getint(
-					'default', 'ParallelTasks', fallback=5),
+					'ActionHandler', 'ParallelTasks', fallback=5),
 				parallel_tasks_per_worker = actionhandler_config.getint(
-					'default', 'ParallelTasksPerWorker', fallback=5),
-				worker_max_idle = actionhandler_config.getint('default', 'WorkerMaxIdle', fallback=300)),
-			zmq_url = actionhandler_config.get('default', 'ZMQ_URL'))]
+					'ActionHandler', 'ParallelTasksPerWorker', fallback=5),
+				worker_max_idle = actionhandler_config.getint('ActionHandler', 'WorkerMaxIdle', fallback=300)),
+			zmq_url = actionhandler_config.get('ActionHandler', 'ZMQ_URL'))]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")
@@ -63,16 +70,14 @@ if __name__ == "__main__":
   {progname} [options] (start|stop|restart)
 
 Options:
+  --debug            do not run as daemon and log to stderr
   --pidfile=PIDFILE  Specify pid file [default: /var/run/{progname}.pid]
   -h --help          Show this help screen
 """.format(progname='autopilot-winrm-actionhandler')
 
 	args=docopt(usage)
-	daemon = ActionHandlerDaemon(args['--pidfile'])
-	if args['start']:
-		daemon.start()
-	elif args['stop']:
-		daemon.stop()
-	elif args['restart']:
-		daemon.restart()
+	daemon = ActionHandlerDaemon(args['--pidfile'], debug=args['--debug'])
+	if   args['start']: daemon.start()
+	elif args['stop']: daemon.stop()
+	elif args['restart']: daemon.restart()
 	sys.exit(0)

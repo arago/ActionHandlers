@@ -9,10 +9,10 @@ import json
 import uuid
 import greenlet
 import logging
-
 from pyactionhandler import Action
-
+from pyactionhandler.ayehu.zeep_redis_cache import RedisCache
 from pyactionhandler.ayehu.exceptions import AyehuAHError, ExitTwiceError, ResourceNotExistsError
+from pyactionhandler.ayehu.REST import RESTAPI
 
 class AyehuAction(Action):
 	def __init__(self, num, node, zmq_info, timeout, parameters,
@@ -20,7 +20,7 @@ class AyehuAction(Action):
 				 rest_api):
 		super(AyehuAction, self).__init__(
 			num, node, zmq_info, timeout, parameters)
-		self.logger = logging.getLogger('worker')
+		self.logger = logging.getLogger('root')
 		self.redis=redis
 		self.ayehu_config=ayehu_config
 		self.pmp_config=pmp_config

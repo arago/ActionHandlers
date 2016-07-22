@@ -7,7 +7,9 @@ class daemon:
 
 	Usage: subclass the daemon class and override the run() method."""
 
-	def __init__(self, pidfile): self.pidfile = pidfile
+	def __init__(self, pidfile, debug=False):
+		self.pidfile = pidfile
+		self.debug=debug
 
 	def daemonize(self):
 		"""Deamonize class. UNIX double fork mechanism."""
@@ -44,9 +46,10 @@ class daemon:
 		so = open(os.devnull, 'a+')
 		se = open(os.devnull, 'a+')
 
-		os.dup2(si.fileno(), sys.stdin.fileno())
-		os.dup2(so.fileno(), sys.stdout.fileno())
-		os.dup2(se.fileno(), sys.stderr.fileno())
+		if not self.debug:
+			os.dup2(si.fileno(), sys.stdin.fileno())
+			os.dup2(so.fileno(), sys.stdout.fileno())
+			os.dup2(se.fileno(), sys.stderr.fileno())
 
 		# write pidfile
 		atexit.register(self.delpid)
@@ -76,7 +79,8 @@ class daemon:
 			sys.exit(1)
 
 		# Start the daemon
-		self.daemonize()
+		if not self.debug:
+			self.daemonize()
 		self.run()
 
 	def stop(self):
