@@ -81,7 +81,7 @@ stname} ${Command}
       Mandatory: true
     - Name: User
       Description: target user
-      Mandatory: true
+      Mandatory: false
       Default: root
   - Name: RunScript
     Description: run script on remote host
@@ -103,7 +103,7 @@ stname} ${Command}
       Mandatory: true
     - Name: User
       Description: target user
-      Mandatory: true
+      Mandatory: false
       Default: root
   - Name: UploadFile
     Description: copy files/directories (recursively) to remote server
