@@ -4,7 +4,7 @@ import tempfile
 from pyactionhandler import Action
 from pyactionhandler.winrm.session import certSession
 from pyactionhandler.winrm.script import Script
-
+from configparser import NoOptionError
 from pyactionhandler.common.pmp import PMPSession, TokenAuth, PMPCredentials
 
 import winrm.exceptions
@@ -99,7 +99,7 @@ class WinRMCmdAction(Action):
 		try:
 			target_auth=self.pmp_get_credentials(
 				pmp_session=pmp_session,
-				resource=self.parameters['Hostname'],
+				resource=self.parameters['PMPResource'],
 				account=self.parameters['ServiceAccount'])
 		except pyactionhandler.common.pmp.exceptions.PMPError:
 			return
@@ -116,7 +116,11 @@ class WinRMCmdAction(Action):
 						self.jumpserver,
 						'PMP_WinRM_Account'
 						)).ssl_cert
-			except pyactionhandler.common.pmp.exceptions.PMPError:
+			except pyactionhandler.common.pmp.exceptions.PMPError as e:
+				self.statusmsg="PMP Error: {msg}".format(e.message)
+				return
+			except NoOptionError:
+				self.statusmsg="Jumpserver config for PMP is missing!"
 				return
 			with tempfile.NamedTemporaryFile() as cert_file:
 				cert_file.write(cert)

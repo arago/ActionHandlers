@@ -27,9 +27,6 @@ class WorkerCollection(object):
 				self.worker_max_idle)
 		return self.workers[NodeID]
 
-	def get_capability(self, name):
-		return self.capabilities[name]
-
 	def remove_worker(self, worker):
 		self.workers = {n: w for n, w in self.workers.items() if w is not worker}
 
@@ -41,11 +38,11 @@ class WorkerCollection(object):
 		while True:
 			anum, capability, timeout, params, zmq_info = self.task_queue.get()
 			try:
-				with self.get_worker(params['NodeID']) as worker:
-					with self.get_capability(capability) as capability:
-						worker.add_action(capability.action_class(
-							anum, params['NodeID'], zmq_info, timeout,
-							params, **capability.params))
-					del worker
+				worker = self.get_worker(params['NodeID'])
+				capability = self.capabilities[capability]
+				worker.add_action(capability.action_class(
+					anum, params['NodeID'], zmq_info, timeout,
+					params, **capability.params))
+				del worker, capability
 			except KeyError:
 				self.logger.error("Unknown capability {cap}".format(cap=capability))

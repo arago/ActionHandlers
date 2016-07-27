@@ -66,7 +66,7 @@ class ActionHandlerDaemon(Daemon):
 			pubsub=commands_pubsub)
 
 		server = pywsgi.WSGIServer(
-			('', 8080), rest_api.app)
+			('', 8080), rest_api.app, log=None, error_log=None)
 
 		action_handlers = [SyncHandler(
 			WorkerCollection(

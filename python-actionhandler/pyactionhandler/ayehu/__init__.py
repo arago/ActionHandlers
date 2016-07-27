@@ -29,7 +29,7 @@ class AyehuAction(Action):
 		self.zeep_client = zeep.Client(
 				ayehu_config.get(self.customer, 'URL'),transport=zeep_transport)
 		try:
-			command_usage=u"""
+			command_usage="""
 Usage:
   Keyword: <command> [(<param> = <val>)]...
 """
@@ -40,7 +40,7 @@ Usage:
 				'TaskKeywords':args['<command>'],
 				'Parameters':dict(zip(args['<param>'], args['<val>'])),
 				'Customer':parameters['CustomerID'],
-				'ServiceAccount':parameters['User'],
+				'ServiceAccount':parameters['ServiceAccount'],
 				'PMPServer':self.pmp_config.get(
 					self.customer, 'URL'),
 				'IncidentID':parameters['Ticket'],
@@ -110,5 +110,18 @@ Usage:
 				self.success=True
 				return
 
-class AyehuBackgroundAction(Action):
-	pass
+class AyehuBackgroundAction(AyehuAction):
+
+	def __call__(self):
+		# pubsub object must be greenlet-local
+		self.pubsub=self.redis.pubsub(ignore_subscribe_messages=True)
+
+		# process action
+		self.create_rest_resource()
+		self.open_incident()
+		self.return_cmdid()
+
+	def return_cmdid(self):
+		self.system_rc=0
+		self.success=true
+		# where to write id???

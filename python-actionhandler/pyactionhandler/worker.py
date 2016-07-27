@@ -18,10 +18,6 @@ class Worker(object):
 		self.logger.info("New Worker for {node} created at {time}, can handle {size} tasks in parallel".format(
 			node=self.node,time=time.strftime("%H:%M:%S", time.localtime()),size=size))
 
-	def __enter__(self): return self
-
-	def __exit__(self, type, value, traceback): pass
-
 	def monitor(self):
 		gevent.joinall(self.greenlets)
 		self.logger.info("Worker for %s shutdown" % self.node)
