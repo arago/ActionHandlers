@@ -24,7 +24,7 @@ setup(
 			  'pyactionhandler.common.pmp',
 			  'pyactionhandler.protobuf',
 			  'pyactionhandler.winrm'],
-	install_requires=['gevent', 'zeep==0.5.0', 'pywinrm', 'redis', 'falcon', 'docopt', 'zmq', 'protobuf<=3.0.0'],
+	install_requires=['gevent', 'zeep', 'pywinrm', 'redis', 'falcon', 'docopt', 'zmq', 'protobuf>=3.0.0b4'],
 	scripts=['bin/autopilot-ayehu-actionhandler.py',
 			 'bin/autopilot-winrm-actionhandler.py'],
     long_description=read('README'),
