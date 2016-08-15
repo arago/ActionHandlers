@@ -48,7 +48,9 @@ Usage:
 					baseurl=self.rest_api.baseurl)
 			}
 		except Exception as e:
-			self.logger.warning("[{anum}] Error parsing command '{cmd}': {err}".format(anum=self.num, cmd=self.parameters['Command'], err=e))
+			self.logger.warning(
+				"[{anum}] Error parsing command '{cmd}': {err}".format(
+					anum=self.num, cmd=self.parameters['Command'], err=e))
 
 	def __timeout__(self, seconds):
 		self.rest_api.command.delete(self.cmdid)
