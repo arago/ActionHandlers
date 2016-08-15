@@ -75,8 +75,7 @@ class ActionHandlerDaemon(Daemon):
 					redis=commands_redis,
 					ayehu_config=ayehu_config,
 					pmp_config=pmp_config,
-					rest_api=rest_api),
-				 "ExecuteWorkflowInBackground":Capability(AyehuBackgroundAction)},
+					rest_api=rest_api)},
 				parallel_tasks = actionhandler_config.getint(
 					'ActionHandler', 'ParallelTasks', fallback=10),
 				parallel_tasks_per_worker = actionhandler_config.getint(
