@@ -65,8 +65,7 @@ class WinRMCmdAction(Action):
 			interpreter='cmd',
 			cols=120)
 
-	@staticmethod
-	def pmp_get_credentials(pmp_session, resource, account):
+	def pmp_get_credentials(self, pmp_session, resource, account):
 		try:
 			return PMPCredentials(
 				pmp_session, ResourceName=resource, AccountName=account)
