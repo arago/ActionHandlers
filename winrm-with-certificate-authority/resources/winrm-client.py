@@ -18,7 +18,7 @@ class Session(winrm.Session):
 
         # must use utf16 little endian on windows
         base64_script = base64.b64encode(script.encode("utf_16_le"))
-        rs = self.run_cmd("mode con: cols=1024 & powershell -encodedcommand %s" % (base64_script))
+        rs = self.run_cmd("mode con: cols=1024 & powershell -NoProfile  -encodedcommand %s" % (base64_script))
         print rs.std_err
         #if len(rs.std_err):
             # if there was an error message, clean it it up and make it human readable
@@ -49,12 +49,14 @@ class basicSession(Session):
 
 class Script(object):
     psWrapper=unicode("""\
+$ProgressPreference = "SilentlyContinue"
 $OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
 @'
-{script}'@ | powershell - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `r`n"))]]></$e>"}}
+{script}'@ | powershell -NoProfile - 2>&1 | %{{$e=@("psout","pserr")[[byte]($_.GetType().Name -eq "ErrorRecord")];return "<$e><![CDATA[$(([string]$_).TrimEnd(" `r`n"))]]></$e>"}}
 exit $LastExitCode
 """)
     cmdWrapper=unicode("""\
+$ProgressPreference = "SilentlyContinue"
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
 {script}'@ | out-file -encoding "OEM" $t
