@@ -202,4 +202,4 @@ class Exit(object):
 		except ExitTwiceError:
 			resp.status = falcon.HTTP_410
 		except ResourceNotExistsError:
-			resp.status = falcon.HTTP_404q
+			resp.status = falcon.HTTP_404

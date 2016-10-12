@@ -1,20 +1,20 @@
-#!/usr/bin/env python
+#!/opt/autopilot/engine/python-actionhandler/bin/python3.5
 import gevent
 from gevent import pywsgi
 from gevent import monkey; monkey.patch_all()
 import zeep
 import redis
 import redis.connection
-import falcon
 import sys
 import gevent.hub
 import signal
-import time
 from docopt import docopt
 import logging
 import logging.config
 from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon
-from pyactionhandler.ayehu import AyehuAction, AyehuBackgroundAction, RESTAPI, RedisCache
+from pyactionhandler.ayehu import AyehuAction, AyehuBackgroundAction, RESTAPI
+from pyactionhandler.ayehu.zeep_redis_cache import RedisCache
+from pygraphit import GraphitSession, WSO2AuthCC
 
 class ActionHandlerDaemon(Daemon):
 	def run(self):
@@ -68,14 +68,54 @@ class ActionHandlerDaemon(Daemon):
 		server = pywsgi.WSGIServer(
 			('', 8080), rest_api.app, log=None, error_log=None)
 
+		# Setup GraphIT session for updating issues in background mode
+		try:
+			wso2_verify_ssl=actionhandler_config.getboolean(
+				'BackgroundMode', 'WSO2_SSL_Cert')
+		except ValueError:
+			wso2_verify_ssl=actionhandler_config.get(
+				'BackgroundMode', 'WSO2_SSL_Cert')
+		try:
+			graphit_verify_ssl=actionhandler_config.getboolean(
+				'BackgroundMode', 'GraphIT_SSL_Cert')
+		except ValueError:
+			graphit_verify_ssl=actionhandler_config.get(
+				'BackgroundMode', 'GraphIT_SSL_Cert')
+		graphit_session = GraphitSession(
+			actionhandler_config.get('BackgroundMode', 'GraphIT_URL'))
+		graphit_session.auth = WSO2AuthCC(
+			actionhandler_config.get('BackgroundMode', 'WSO2_URL'),
+	        client = [
+				actionhandler_config.get(
+					'BackgroundMode', 'WSO2_Client_ID'),
+				actionhandler_config.get(
+					'BackgroundMode', 'WSO2_Client_Secret')
+			],
+			verify=wso2_verify_ssl)
+		graphit_session.verify=graphit_verify_ssl
+
+		deployment_timeout=actionhandler_config.getint(
+			'BackgroundMode', 'GraphIT_Deployment_Timeout', fallback=60)
+
 		action_handlers = [SyncHandler(
 			WorkerCollection(
-				{"ExecuteWorkflow":Capability(AyehuAction,
+				{"ExecuteWorkflow":Capability(
+					AyehuAction,
 					zeep_transport=zeep_transport,
 					redis=commands_redis,
 					ayehu_config=ayehu_config,
 					pmp_config=pmp_config,
-					rest_api=rest_api)},
+					rest_api=rest_api),
+				 "ExecuteWorkflowInBackground":Capability(
+					AyehuBackgroundAction,
+					zeep_transport=zeep_transport,
+					redis=commands_redis,
+					ayehu_config=ayehu_config,
+					pmp_config=pmp_config,
+					rest_api=rest_api,
+					graphit_session=graphit_session,
+					deployment_timeout=deployment_timeout),
+				},
 				parallel_tasks = actionhandler_config.getint(
 					'ActionHandler', 'ParallelTasks', fallback=10),
 				parallel_tasks_per_worker = actionhandler_config.getint(

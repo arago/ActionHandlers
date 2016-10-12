@@ -7,3 +7,7 @@ class ExitTwiceError(AyehuAHError):
 
 class ResourceNotExistsError(AyehuAHError):
 	pass
+
+class IssueUpdateError(AyehuAHError):
+	pass
+
