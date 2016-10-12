@@ -38,6 +38,8 @@ pip2.7 install isodate xmltodict pytest pytest-cov pytest-pep8 mock pywinrm==0.1
 
 Download the WinRM client [winrm-client.py](../winrm-with-certificate-authority/resources/winrm-client.py) and put it into `/opt/autopilot/bin/` on the AutoPilot engine node.
 
+**It is important to really *download* the file, not copy'n'paste it's content. So please click on on "Raw" and save the page.**
+
 ## Testing the remote access
 
 On the AutoPilot machine, the next command should succeed and you should get a listing of the Windows user’s home directory:
