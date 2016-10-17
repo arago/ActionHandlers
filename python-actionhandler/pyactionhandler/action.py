@@ -20,7 +20,7 @@ class Action(object):
 			self()
 		except Exception as e:
 			self.logger.debug(e)
-			self.statusmsg="ACTIONHANDLER CRASHED!!!\n{tb}".format(
+			self.statusmsg="ACTIONHANDLER CRASHED DURING ACTION CALL!!!\n{tb}".format(
 				tb=traceback.format_exc())
 			self.success=False
 			self.logger.critical(self.statusmsg)

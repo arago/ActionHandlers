@@ -49,5 +49,5 @@ class WorkerCollection(object):
 				self.logger.error("Unknown capability {cap}".format(cap=capability))
 			except Exception as e:
 				self.logger.debug(e)
-				self.logger.critical("Error when adding the action!\n{tb}".format(
+				self.logger.critical("ACTIONHANDLER CRASHED DURING ACTION INIT!!!\n{tb}".format(
 					tb=traceback.format_exc()))
