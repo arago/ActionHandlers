@@ -20,11 +20,20 @@ class Action(object):
 			self()
 		except Exception as e:
 			self.logger.debug(e)
-			self.statusmsg="ACTIONHANDLER CRASHED DURING ACTION CALL!!!\n{tb}".format(
-				tb=traceback.format_exc())
+			self.statusmsg="ACTIONHANDLER CRASHED DURING ACTION"
+			self.error_output = traceback.format_exc()
 			self.success=False
 			self.logger.critical(self.statusmsg)
 		return(self)
 
 	def __call__(self):
 		self.statusmsg="ActionHandler not implemented"
+
+class FailedAction(Action):
+	def __call__(self):
+		self.statusmsg = "COULD NOT INITIALIZE ACTION"
+		self.error_output = traceback.format_exc()
+		self.success = False
+
+	def __str__(self):
+		return "a failed command in order to return the error message to the KI."

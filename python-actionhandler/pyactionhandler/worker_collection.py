@@ -2,6 +2,7 @@ import time
 import gevent
 from greenlet import GreenletExit
 from pyactionhandler.worker import Worker
+from pyactionhandler import FailedAction
 import sys
 import logging
 import traceback
@@ -41,13 +42,14 @@ class WorkerCollection(object):
 			try:
 				worker = self.get_worker(params['NodeID'])
 				capability = self.capabilities[capability]
-				worker.add_action(capability.action_class(
-					anum, params['NodeID'], zmq_info, timeout,
-					params, **capability.params))
-				del worker, capability
+				try:
+					worker.add_action(capability.action_class(
+						anum, params['NodeID'], zmq_info, timeout,
+						params, **capability.params))
+				except Exception as e:
+					worker.add_action(FailedAction(
+						anum, params['NodeID'], zmq_info, timeout, params))
 			except KeyError:
 				self.logger.error("Unknown capability {cap}".format(cap=capability))
-			except Exception as e:
-				self.logger.debug(e)
-				self.logger.critical("ACTIONHANDLER CRASHED DURING ACTION INIT!!!\n{tb}".format(
-					tb=traceback.format_exc()))
+			finally:
+				del worker, capability
