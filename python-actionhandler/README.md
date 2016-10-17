@@ -33,7 +33,7 @@ Please follow these steps in order to download and install all requirements from
 The remaining python modules will not be installed on a system level but into a virtual python environment.
 
 1. Create a new virtual python 3.5 environment: `virtualenv -p python3.5 /opt/autopilot/engine/python-actionhandler`
-2. Switch to the newly created virtualenv: `source /opt/autopilot/engine/python-actionhandler/bin/activate`. Your command prompt will change, indicating the environment you're in. Additionally, while you're in this environment, you can execute `python3.5` by simply typing `python` and `pip3.5` by simply typing `pip`
+2. Switch to the newly created virtualenv: `source /opt/autopilot/engine/python-actionhandler/bin/activate`. Your command prompt will change, indicating the environment you're in. Additionally, while you're in this environment, you can execute `python3.5` by simply typing `python` and `pip3.5` by simply typing `pip`. To leave the environment, type `deactivate`.
 3. Install the following python modules (and their dependencies) inside the virtualenv:
 
   | Module     | needed by                    | purpose                                           |
@@ -169,9 +169,11 @@ The ActionHandler will run as Unix daemons and log to `/var/log/autopilot/engine
 ```
 service autopilot-winrm-actionhandler start
 service autopilot-winrm-actionhandler status
-service autopilot-ayehu-actionhandler start
+
+service autopilot-ayehu-actionhandler start
 service autopilot-ayehu-actionhandler status
-service autopilot-counting-actionhandler start
+
+service autopilot-counting-actionhandler start
 service autopilot-counting-actionhandler status
 ```
 
