@@ -32,4 +32,5 @@ flycheck_*.el
 # projectiles files
 .projectile
 
+AYEHU/
 ayehu-remote-client.py
