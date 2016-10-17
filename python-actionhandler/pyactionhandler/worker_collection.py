@@ -4,6 +4,7 @@ from greenlet import GreenletExit
 from pyactionhandler.worker import Worker
 import sys
 import logging
+import traceback
 
 class WorkerCollection(object):
 	def __init__(self, capabilities, parallel_tasks=10, parallel_tasks_per_worker=10, worker_max_idle=300):
@@ -46,3 +47,7 @@ class WorkerCollection(object):
 				del worker, capability
 			except KeyError:
 				self.logger.error("Unknown capability {cap}".format(cap=capability))
+			except Exception as e:
+				self.logger.debug(e)
+				self.logger.critical("Error when adding the action!\n{tb}".format(
+					tb=traceback.format_exc()))
