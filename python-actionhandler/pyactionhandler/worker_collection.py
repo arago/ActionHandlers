@@ -2,8 +2,10 @@ import time
 import gevent
 from greenlet import GreenletExit
 from pyactionhandler.worker import Worker
+from pyactionhandler import FailedAction
 import sys
 import logging
+import traceback
 
 class WorkerCollection(object):
 	def __init__(self, capabilities, parallel_tasks=10, parallel_tasks_per_worker=10, worker_max_idle=300):
@@ -40,9 +42,14 @@ class WorkerCollection(object):
 			try:
 				worker = self.get_worker(params['NodeID'])
 				capability = self.capabilities[capability]
-				worker.add_action(capability.action_class(
-					anum, params['NodeID'], zmq_info, timeout,
-					params, **capability.params))
-				del worker, capability
+				try:
+					worker.add_action(capability.action_class(
+						anum, params['NodeID'], zmq_info, timeout,
+						params, **capability.params))
+				except Exception as e:
+					worker.add_action(FailedAction(
+						anum, params['NodeID'], zmq_info, timeout, params))
 			except KeyError:
 				self.logger.error("Unknown capability {cap}".format(cap=capability))
+			finally:
+				del worker, capability

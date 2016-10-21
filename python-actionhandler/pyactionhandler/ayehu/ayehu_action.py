@@ -24,6 +24,12 @@ class AyehuAction(Action):
 		try:
 			self.zeep_client = zeep.Client(
 				ayehu_config.get(self.customer, 'URL'),transport=zeep_transport)
+		except ConnectionError as e:
+			self.logger.error("[{anum}] Error connecting to Ayehu!".format(anum=num))
+			self.logger.debug("[{anum}] Error message was: {err}".format(
+				anum=self.num,
+				err=str(e)))
+			raise
 		except Exception as e:
 			self.logger.debug(e)
 			self.logger.error("Error initializing Ayehu SOAP client!\n{tb}".format(
