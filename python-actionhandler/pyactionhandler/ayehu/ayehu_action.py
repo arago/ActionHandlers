@@ -31,13 +31,9 @@ class AyehuAction(Action):
 				err=str(e)))
 			raise
 		except Exception as e:
-			self.logger.error("[{anum}] Error initializing SOAP client for Ayehu".format(
-				anum=num))
-			self.logger.debug("[{anum}] Error message was: {err}".format(
-				anum=self.num,
-				err=str(e)))
-			raise
-			raise
+			self.logger.debug(e)
+			self.logger.error("Error initializing Ayehu SOAP client!\n{tb}".format(
+				tb=traceback.format_exc()))
 		try:
 			command_usage="""
 Usage:
