@@ -37,7 +37,7 @@ def fallback(function):
 	def wrapper(self, *args, **kwargs):
 		try:
 			return function(self, *args, **kwargs)
-		except (NoSectionError, NoOptionError):
-			args=('default',) + args[1:]
+		except (NoSectionError):
+			self.add_section(args[0])
 			return function(self, *args, **kwargs)
 	return wrapper

@@ -82,14 +82,32 @@ Usage:
 		self.info['CallbackURL'] = self.info['CallbackURL'].format(
 			id=self.cmdid)
 		try:
-			self.zeep_client.service.EyeShareWebService_Incident_Format(
-				self.ayehu_config.get(self.customer, 'EyeshareIP'),
-				self.ayehu_config.get(self.customer, 'Source'),
-				self.info['DeviceID'],
-				self.parameters['Classification'],
-				json.dumps(self.info),
-				self.ayehu_config.get(self.customer, 'State'),
-				self.ayehu_config.get(self.customer, 'Severity'))
+			operation = self.ayehu_config.get(self.customer, 'Method', fallback='incident')
+			self.logger.debug("[{anum}] Calling Ayehu using SOAP Operation: {op}".format(
+				anum=self.num, op=operation))
+			if operation == 'email':
+				self.zeep_client.service.EyeShareWebService_Email_Format(
+					self.ayehu_config.get(self.customer, 'EyeshareIP'),
+					self.ayehu_config.get(self.customer, 'Source'),
+					self.info['DeviceID'],
+					self.parameters['Ticket'], # Subject
+					json.dumps(self.info), # Message
+					'' # HTMLMessage
+				)
+			elif operation == 'generic':
+				self.zeep_client.service.EyeShareWebService_Generic(
+					self.ayehu_config.get(self.customer, 'Source'),
+					json.dumps(self.info),
+					False)
+			else: # operation == 'incident' and fallback for unknown methods
+				self.zeep_client.service.EyeShareWebService_Incident_Format(
+					self.ayehu_config.get(self.customer, 'EyeshareIP'),
+					self.ayehu_config.get(self.customer, 'Source'),
+					self.info['DeviceID'],
+					self.parameters['Classification'],
+					json.dumps(self.info),
+					self.ayehu_config.get(self.customer, 'State'),
+					self.ayehu_config.get(self.customer, 'Severity'))
 		except (TransportError, ConnectionError) as e:
 			self.rest_api.command.delete(self.cmdid)
 			self.logger.error("[{anum}] Error when creating incident in Ayehu: {err}".format(

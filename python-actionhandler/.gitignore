@@ -32,4 +32,7 @@ flycheck_*.el
 # projectiles files
 .projectile
 
+# python wheels
+*.whl
+
 ayehu-remote-client.py
