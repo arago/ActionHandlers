@@ -11,7 +11,7 @@ The `pyactionhandler` library itself and the included sample ActionHandlers are 
 
 #### Get packages and python modules from the internet
 
-Please follow these steps in order to download and install all requirements from the internet. If you want to do an offline installation, please see section *Offline installation using the included packages* below.
+Please follow these steps in order to download and install all requirements from the internet.
 
 ##### System packages and python modules
 1. Install the IUS repository by downloading and installing the appropriate package from https://ius.io/GettingStarted/
