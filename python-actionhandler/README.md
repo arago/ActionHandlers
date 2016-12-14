@@ -51,23 +51,13 @@ The remaining python modules will not be installed on a system level but into a 
   
   Install by executing: `pip install zeep redis pywinrm gevent requests falcon protobuf zmq docopt setuptools`
 
-4. Install the pyactionhandler module and sample ActionHandlers: `pip install wheels/pyactionhandler-VERSION-py3-none-any.whl`
+4. Download and Install the pyactionhandler module and sample ActionHandlers:
 
-#### Offline installation using the included packages
-
-If you need to install the ActionHandlers on a machine without internet access, please follow these steps.
-
-##### System packages and python modules
-1. Install the packages by executing: `yum -y localinstall base-packages/*.rpm`
-2. Install the python modules by executing: `pip3.5 install base-packages/*.whl`
-
-##### Additionally required python modules
-
-The remaining python modules will not be installed on a system level but into a virtual python environment.
-
-1. Create a new virtual python 3.5 environment: `virtualenv -p python3.5 /opt/autopilot/engine/python-actionhandler`
-2. Switch to the newly created virtualenv: `source /opt/autopilot/engine/python-actionhandler/bin/activate`. Your command prompt will change, indicating the environment you're in. Additionally, while you're in this environment, you can execute `python3.5` by simply typing `python` and `pip3.5` by simply typing `pip`
-3. Install the additional python modules, the pyactionhandler library and sample ActionHandlers by executing: `pip install wheels/*.whl`
+```
+git clone https://github.com/arago/ActionHandlers.git
+cd ActionHandlers/python-actionhandler
+pip install .
+```
 
 ### Installation of the init scripts for the sample ActionHandlers
 1. Copy the init scripts to the system's `/etc/init.d` directory and make them executable:
