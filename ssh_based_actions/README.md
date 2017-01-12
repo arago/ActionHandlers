@@ -71,7 +71,6 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
   - Name: ExecuteCommand
     Description: execute command on remote host
     Command: ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ${Command}
-stname} ${Command}
     Parameter:
     - Name: Command
       Description: command to execute
@@ -85,14 +84,7 @@ stname} ${Command}
       Default: root
   - Name: RunScript
     Description: run script on remote host
-    Interpreter: 'FNAME=`basename ${TEMPFILE}` ; scp -o StrictHostKeyChecking=no -o
-      UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet 
-      -i /opt/autopilot/.ssh/id_rsa ${TEMPFILE} ${User}@${Hostname}: ; 
-      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes 
-      -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ./$FNAME ; 
-      RESULT=$?; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
-      -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa
-      ${User}@${Hostname} rm -f ${FNAME}; exit $RESULT'
+    Interpreter: 'FNAME=`basename ${TEMPFILE}` ; scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${TEMPFILE} ${User}@${Hostname}: ; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ./$FNAME ; RESULT=$?; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} rm -f ${FNAME}; exit $RESULT'
     Command: ${Command}
     Parameter:
     - Name: Command
