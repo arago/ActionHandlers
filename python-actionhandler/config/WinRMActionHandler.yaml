@@ -1,4 +1,3 @@
-ActionHandlerDescription: 
 - Capability: 
   - Name: ExecuteCommand
     Description: "Execute a DOS Command on a remote Windows machine"
@@ -6,45 +5,20 @@ ActionHandlerDescription:
     - Name: Command
       Mandatory: true
       Description: "The DOS command to execute"
-    - Name: RemoteExecutionServer
-      Default: "${RemoteExecutionServer}"
-      Description: "The Jumpserver to use"
     - Name: Hostname
       Description: "The name of the remote Windows machine"
-    - Name: ServiceAccount
-      Default: "${ServiceAccount}"
-      Description: "The user account"
-    - Name: PMPResource
-      Default: "${NodeName}"
-      Description: "How this machine is called in PMP"
   - Name: ExecutePowershell
     Description: "Execute a Powershell command on a remote Windows machine"
     Parameter: 
     - Name: Command
       Mandatory: true
       Description: "The DOS command to execute"
-    - Name: RemoteExecutionServer
-      Default: "${RemoteExecutionServer}"
-      Description: "The Jumpserver to use"
     - Name: Hostname
       Description: "The name of the remote Windows machine"
-    - Name: ServiceAccount
-      Default: "${ServiceAccount}"
-      Description: "The user account"
-    - Name: PMPResource
-      Default: "${NodeName}"
-      Description: "How this machine is called in PMP"
   Applicability:
   - Priority: 100
     ModelFilter: 
-    - And: 
-      - Var:
-          Name: MachineClass
-          Mode: string
-          Value: Windows
-      - Var:
-          Name: RemoteExecutionServer
-          Mode: exists
-      - Var:
-          Name: ServiceAccount
-          Mode: exists
+    - Var:
+        Name: MachineClass
+        Mode: string
+        Value: Windows

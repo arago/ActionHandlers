@@ -17,14 +17,15 @@ Please follow these steps in order to download and install all requirements from
 1. Install the IUS repository by downloading and installing the appropriate package from https://ius.io/GettingStarted/
 2. Install the following packages (and their dependencies):
 
-  | Package       | will be fetched from  |
-  | ------------- | --------------------- |
-  | libxslt       | standard repositories |
-  | python35u     | IUS repository        |
-  | python35u-pip | IUS repository        |
-  | redis32u      | IUS repository        |
-
-  The `redis32u` package is needed by the included Ayehu Eyeshare ActionHandler. It is not needed in general.
+  | Package          | will be fetched from  |
+  | ---------------- | --------------------- |
+  | libxslt          | standard repositories |
+  | python35u        | IUS repository        |
+  | python35u-pip    | IUS repository        |
+  | python35u-devel  | IUS repository        |
+  | gcc              | standard repositories |
+  | krb5-workstation | standard repositories |
+  | krb5-devel       | standard repositories |
 
 3. Install the required python modules by executing: `pip3.5 install virtualenv wheel`
 
@@ -36,44 +37,32 @@ The remaining python modules will not be installed on a system level but into a 
 2. Switch to the newly created virtualenv: `source /opt/autopilot/engine/python-actionhandler/bin/activate`. Your command prompt will change, indicating the environment you're in. Additionally, while you're in this environment, you can execute `python3.5` by simply typing `python` and `pip3.5` by simply typing `pip`. To leave the environment, type `deactivate`.
 3. Install the following python modules (and their dependencies) inside the virtualenv:
 
-  | Module     | needed by                    | purpose                                           |
-  | ---------- | ---------------------------- | ------------------------------------------------- |
-  | setuptools | build process                | packaging                                         |
-  | gevent     | pyactionhandler library      | pseudo-threads for memory efficent concurrency    |
-  | zmq        | pyactionhandler library      | communication with the HIRO Engine                |
-  | protobuf   | pyactionhandler library      | communication with the HIRO Engine                |
-  | docopt     | ActionHandler executables    | parsing command line options                      |
-  | requests   | pygraphit library            | making HTTP(S) calls to REST APIs                 |
-  | zeep       | Ayehu Eyeshare ActionHandler | making SOAP calls to a WebService                 |
-  | redis      | Ayehu Eyeshare ActionHandler | Independent key-value store                       |
-  | falcon     | Ayehu Eyeshare ActionHandler | implement the REST API for the callback mechanism |
-  | pywinrm    | WinRM ActionHandler          | executing commands remotely on Windows machines   |
+  | Module            | needed by                    | purpose                                           |
+  | ----------------- | ---------------------------- | ------------------------------------------------- |
+  | setuptools        | build process                | packaging                                         |
+  | gevent            | pyactionhandler library      | pseudo-threads for memory efficent concurrency    |
+  | zmq               | pyactionhandler library      | communication with the HIRO Engine                |
+  | protobuf          | pyactionhandler library      | communication with the HIRO Engine                |
+  | docopt            | ActionHandler executables    | parsing command line options                      |
+  | requests          | WinRM ActionHandler          | making HTTP(S) calls                              |
+  | requests-kerberos | WinRM ActionHandler          | Kerberos authentication for HTTP(S) calls         |
+  | pywinrm           | WinRM ActionHandler          | executing commands remotely on Windows machines   |
   
-  Install by executing: `pip install zeep redis pywinrm gevent requests falcon protobuf zmq docopt setuptools`
+  Install by executing: `pip install pywinrm gevent requests requests-kerberos protobuf zmq docopt setuptools`
 
-4. Install the pyactionhandler module and sample ActionHandlers: `pip install wheels/pyactionhandler-VERSION-py3-none-any.whl`
+4. Download and Install the pyactionhandler module and sample ActionHandlers:
 
-#### Offline installation using the included packages
-
-If you need to install the ActionHandlers on a machine without internet access, please follow these steps.
-
-##### System packages and python modules
-1. Install the packages by executing: `yum -y localinstall base-packages/*.rpm`
-2. Install the python modules by executing: `pip3.5 install base-packages/*.whl`
-
-##### Additionally required python modules
-
-The remaining python modules will not be installed on a system level but into a virtual python environment.
-
-1. Create a new virtual python 3.5 environment: `virtualenv -p python3.5 /opt/autopilot/engine/python-actionhandler`
-2. Switch to the newly created virtualenv: `source /opt/autopilot/engine/python-actionhandler/bin/activate`. Your command prompt will change, indicating the environment you're in. Additionally, while you're in this environment, you can execute `python3.5` by simply typing `python` and `pip3.5` by simply typing `pip`
-3. Install the additional python modules, the pyactionhandler library and sample ActionHandlers by executing: `pip install wheels/*.whl`
+```
+git clone https://github.com/arago/ActionHandlers.git
+git checkout FEAT_winrm_kerberos
+cd ActionHandlers/python-actionhandler
+pip install .
+```
 
 ### Installation of the init scripts for the sample ActionHandlers
 1. Copy the init scripts to the system's `/etc/init.d` directory and make them executable:
 
    ```
-   cp etc/init.d/autopilot-ayehu-actionhandler /etc/init.d/
    cp etc/init.d/autopilot-winrm-actionhandler /etc/init.d/
    cp etc/init.d/autopilot-counting-actionhandler /etc/init.d/
    chmod a+x /etc/init.d/autopilot-*-actionhandler
@@ -83,17 +72,7 @@ The remaining python modules will not be installed on a system level but into a 
 
    ```
    chkconfig --add autopilot-winrm-actionhandler
-   chkconfig --add autopilot-ayehu-actionhandler
    chkconfig --add autopilot-counting-actionhandler
-   ```
-   
-3. The Ayehu Eyeshare ActionHandler needs the redis datastore to be running. Copy over the included config file and start redis as well:
-
-   ```
-   cp -f etc/redis.conf /etc/
-   chkconfig redis on
-   service redis start
-   service redis status
    ```
 
 ### Configuration of the ActionHandlers
@@ -111,10 +90,6 @@ The remaining python modules will not be installed on a system level but into a 
 
    **This section will be expanded, soon. If you just want to try the sample 'CountingRhyme' ActionHandler, you don't need to change anything.**
 
-3. The "background mode" of the Ayehu Eyeshare ActionHandler updates AutomationIssues by calling the GraphIT REST API. In order to do that, it has to request an authentication token from the WSO2 identity server. Additionally, a new security policy has to be imported into WSO2 that allows the ActionHandler to write to the graph database. The documentation for these steps is not finished, yet. In the meantime, please refer to the temporary howto in the "WSO2 config" folder for details.
-
-   **Without this step, the background mode of the Ayehu Eyeshare ActionHandler will not work!**
-
 ### Configuration of the HIRO Engine
 #### For HIRO versions 5.2 – 5.3.1
 
@@ -126,10 +101,6 @@ ActionHandlers:
   - URL: tcp://127.0.0.1:7289
     SubscribeURL: ''
     CapabilityXML: /opt/autopilot/conf/pyactionhandler/WinRMActionHandler.xml
-    RequestTimeout: 60
-  - URL: tcp://127.0.0.1:7290
-    SubscribeURL: ''
-    CapabilityXML: /opt/autopilot/conf/pyactionhandler/AyehuActionHandler.xml
     RequestTimeout: 60
   - URL: tcp://127.0.0.1:7291
     SubscribeURL: ''
@@ -150,10 +121,6 @@ ActionHandlers:
     SubscribeURL: ''
     CapabilityYAML: /opt/autopilot/conf/pyactionhandler/WinRMActionHandler.yaml
     RequestTimeout: 60
-  - URL: tcp://127.0.0.1:7290
-    SubscribeURL: ''
-    CapabilityYAML: /opt/autopilot/conf/pyactionhandler/AyehuActionHandler.yaml
-    RequestTimeout: 60
   - URL: tcp://127.0.0.1:7291
     SubscribeURL: ''
     CapabilityYAML: /opt/autopilot/conf/pyactionhandler/CountingRhymeActionHandler.yaml
@@ -169,9 +136,6 @@ The ActionHandler will run as Unix daemons and log to `/var/log/autopilot/engine
 ```
 service autopilot-winrm-actionhandler start
 service autopilot-winrm-actionhandler status
-
-service autopilot-ayehu-actionhandler start
-service autopilot-ayehu-actionhandler status
 
 service autopilot-counting-actionhandler start
 service autopilot-counting-actionhandler status
