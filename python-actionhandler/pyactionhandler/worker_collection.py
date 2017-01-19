@@ -47,6 +47,7 @@ class WorkerCollection(object):
 						anum, params['NodeID'], zmq_info, timeout,
 						params, **capability.params))
 				except Exception as e:
+					self.logger.debug(e)
 					worker.add_action(FailedAction(
 						anum, params['NodeID'], zmq_info, timeout, params))
 			except KeyError:

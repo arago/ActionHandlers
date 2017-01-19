@@ -71,7 +71,7 @@ class PMPSession(Session):
 		self.target_auth = (target_auth.WindowsUserName, target_auth.passwd())
 
 class krb5Session(Session):
-	def __init__(self, endpoint, auth, target=None, validation='ignore'):
+	def __init__(self, endpoint, target=None, validation='ignore'):
 		self.protocol = winrm.Protocol(
 			endpoint=endpoint,
 			transport='kerberos',

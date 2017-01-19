@@ -35,23 +35,10 @@ class ActionHandlerDaemon(Daemon):
 			logger.addHandler(ch)
 			logger.info("Logging also to console")
 
-		# Read config files
-		jumpserver_config = ConfigParser()
-		jumpserver_config.read((
-			'/opt/autopilot/conf/pyactionhandler/'
-			'winrm-actionhandler-jumpserver.conf'))
-
-		pmp_config = ConfigParser()
-		pmp_config.read('/opt/autopilot/conf/pyactionhandler/pmp.conf')
-
 		action_handlers = [SyncHandler(
 			WorkerCollection(
-				{"ExecuteCommand":Capability(WinRMCmdAction,
-											 pmp_config=pmp_config,
-											 jumpserver_config=jumpserver_config),
-				 "ExecutePowershell":Capability(WinRMPowershellAction,
-												pmp_config=pmp_config,
-												jumpserver_config=jumpserver_config)},
+				{"ExecuteCommand":Capability(WinRMCmdAction, ssl=False),
+				 "ExecutePowershell":Capability(WinRMPowershellAction, ssl=False)},
 				parallel_tasks = actionhandler_config.getint(
 					'ActionHandler', 'ParallelTasks', fallback=5),
 				parallel_tasks_per_worker = actionhandler_config.getint(
