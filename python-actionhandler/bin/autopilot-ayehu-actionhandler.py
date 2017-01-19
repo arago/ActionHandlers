@@ -11,6 +11,7 @@ import signal
 from docopt import docopt
 import logging
 import logging.config
+import configparser
 from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon
 from pyactionhandler.ayehu import AyehuAction, AyehuBackgroundAction, RESTAPI
 from pyactionhandler.ayehu.zeep_redis_cache import RedisCache
@@ -42,71 +43,82 @@ class ActionHandlerDaemon(Daemon):
 		pmp_config = ConfigParser()
 		pmp_config.read('/opt/autopilot/conf/pyactionhandler/pmp.conf')
 
-		# Redis datastore for commands handed to Ayehu
-		commands_redis = redis.StrictRedis(
-			host=actionhandler_config.get('RESTInterface', 'RedisHost'),
-			port=actionhandler_config.get('RESTInterface', 'RedisPort'),
-			db=actionhandler_config.get('RESTInterface', 'RedisDB'),
-			charset = "utf-8",
-			decode_responses = True)
-		commands_pubsub = commands_redis.pubsub(ignore_subscribe_messages=True)
+		capabilities = {}
 
-		# Redis datastore for zeep's cache
-		zeep_cache_redis = redis.StrictRedis(
-			host=actionhandler_config.get('SOAPClient', 'RedisHost'),
-			port=actionhandler_config.get('SOAPClient', 'RedisPort'),
-			db=actionhandler_config.get('SOAPClient', 'RedisDB'))
-		zeep_cache = RedisCache(timeout=3600, redis=zeep_cache_redis)
-		zeep_transport = zeep.transports.Transport(cache=zeep_cache)
+		# Setup foreground mode
 
-		# Setup REST API for callback
-		rest_api = RESTAPI(
-			baseurl=actionhandler_config.get('RESTInterface', 'CallbackBaseURL'),
-			redis=commands_redis,
-			pubsub=commands_pubsub)
-
-		server = pywsgi.WSGIServer(
-			('', 8080), rest_api.app, log=None, error_log=None)
-
-		# Setup GraphIT session for updating issues in background mode
 		try:
-			wso2_verify_ssl=actionhandler_config.getboolean(
-				'BackgroundMode', 'WSO2_SSL_Cert')
-		except ValueError:
-			wso2_verify_ssl=actionhandler_config.get(
-				'BackgroundMode', 'WSO2_SSL_Cert')
-		try:
-			graphit_verify_ssl=actionhandler_config.getboolean(
-				'BackgroundMode', 'GraphIT_SSL_Cert')
-		except ValueError:
-			graphit_verify_ssl=actionhandler_config.get(
-				'BackgroundMode', 'GraphIT_SSL_Cert')
-		graphit_session = GraphitSession(
-			actionhandler_config.get('BackgroundMode', 'GraphIT_URL'))
-		graphit_session.auth = WSO2AuthCC(
-			actionhandler_config.get('BackgroundMode', 'WSO2_URL'),
-	        client = [
-				actionhandler_config.get(
-					'BackgroundMode', 'WSO2_Client_ID'),
-				actionhandler_config.get(
-					'BackgroundMode', 'WSO2_Client_Secret')
-			],
-			verify=wso2_verify_ssl)
-		graphit_session.verify=graphit_verify_ssl
 
-		deployment_timeout=actionhandler_config.getint(
-			'BackgroundMode', 'GraphIT_Deployment_Timeout', fallback=60)
+			# Redis datastore for commands handed to Ayehu
+			commands_redis = redis.StrictRedis(
+				host=actionhandler_config.get('RESTInterface', 'RedisHost'),
+				port=actionhandler_config.get('RESTInterface', 'RedisPort'),
+				db=actionhandler_config.get('RESTInterface', 'RedisDB'),
+				charset = "utf-8",
+				decode_responses = True)
+			commands_pubsub = commands_redis.pubsub(ignore_subscribe_messages=True)
 
-		action_handlers = [SyncHandler(
-			WorkerCollection(
-				{"ExecuteWorkflow":Capability(
-					AyehuAction,
-					zeep_transport=zeep_transport,
-					redis=commands_redis,
-					ayehu_config=ayehu_config,
-					pmp_config=pmp_config,
-					rest_api=rest_api),
-				 "ExecuteWorkflowInBackground":Capability(
+			# Redis datastore for zeep's cache
+			zeep_cache_redis = redis.StrictRedis(
+				host=actionhandler_config.get('SOAPClient', 'RedisHost'),
+				port=actionhandler_config.get('SOAPClient', 'RedisPort'),
+				db=actionhandler_config.get('SOAPClient', 'RedisDB'))
+			zeep_cache = RedisCache(timeout=3600, redis=zeep_cache_redis)
+			zeep_transport = zeep.transports.Transport(cache=zeep_cache)
+
+			# Setup REST API for callback
+			rest_api = RESTAPI(
+				baseurl=actionhandler_config.get('RESTInterface', 'CallbackBaseURL'),
+				redis=commands_redis,
+				pubsub=commands_pubsub)
+
+			server = pywsgi.WSGIServer(
+				('', 8080), rest_api.app, log=None, error_log=None)
+
+		except (configparser.NoSectionError, configparser.NoOptionError, KeyError):
+			logger.info("Can't setup foreground mode, required setting missing!")
+		else:
+			capabilities["ExecuteWorkflow"] = Capability(
+				AyehuAction,
+				zeep_transport=zeep_transport,
+				redis=commands_redis,
+				ayehu_config=ayehu_config,
+				pmp_config=pmp_config,
+				rest_api=rest_api)
+
+			# Setup GraphIT session for updating issues in background mode
+			try:
+				try:
+					wso2_verify_ssl=actionhandler_config.getboolean(
+						'BackgroundMode', 'WSO2_SSL_Cert')
+				except ValueError:
+					wso2_verify_ssl=actionhandler_config.get(
+						'BackgroundMode', 'WSO2_SSL_Cert')
+				try:
+					graphit_verify_ssl=actionhandler_config.getboolean(
+						'BackgroundMode', 'GraphIT_SSL_Cert')
+				except ValueError:
+					graphit_verify_ssl=actionhandler_config.get(
+						'BackgroundMode', 'GraphIT_SSL_Cert')
+				graphit_session = GraphitSession(
+					actionhandler_config.get('BackgroundMode', 'GraphIT_URL'))
+				graphit_session.auth = WSO2AuthCC(
+					actionhandler_config.get('BackgroundMode', 'WSO2_URL'),
+					client = [
+						actionhandler_config.get(
+							'BackgroundMode', 'WSO2_Client_ID'),
+						actionhandler_config.get(
+							'BackgroundMode', 'WSO2_Client_Secret')
+					],
+					verify=wso2_verify_ssl)
+				graphit_session.verify=graphit_verify_ssl
+
+				deployment_timeout=actionhandler_config.getint(
+					'BackgroundMode', 'GraphIT_Deployment_Timeout', fallback=60)
+			except (configparser.NoSectionError, configparser.NoOptionError, KeyError):
+				logger.error("Can't setup background mode, required setting missing!")
+			else:
+				capabilities["ExecuteWorkflowInBackground"] = Capability(
 					AyehuBackgroundAction,
 					zeep_transport=zeep_transport,
 					redis=commands_redis,
@@ -114,8 +126,11 @@ class ActionHandlerDaemon(Daemon):
 					pmp_config=pmp_config,
 					rest_api=rest_api,
 					graphit_session=graphit_session,
-					deployment_timeout=deployment_timeout),
-				},
+					deployment_timeout=deployment_timeout)
+
+		action_handlers = [SyncHandler(
+			WorkerCollection(
+				capabilities,
 				parallel_tasks = actionhandler_config.getint(
 					'ActionHandler', 'ParallelTasks', fallback=10),
 				parallel_tasks_per_worker = actionhandler_config.getint(
