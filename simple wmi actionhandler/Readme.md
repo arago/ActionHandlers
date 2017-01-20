@@ -52,13 +52,13 @@ Add the following definition to your /opt/autopilot/conf/aae.yaml file:
 ```yaml
 # WMI based remote execution
 - Applicability:
-    Priority: 70
+  - Priority: 70
     ModelFilter:
-      Var:
+    - Var:
         Name: NodeType
         Mode: string
         Value: Machine
-      Var:
+    - Var:
         Name: MachineClass
         Mode: string
         Value: Windows
