@@ -48,8 +48,10 @@ class WorkerCollection(object):
 						params, **capability.params))
 				except Exception as e:
 					self.logger.debug(e)
-					worker.add_action(FailedAction(
-						anum, params['NodeID'], zmq_info, timeout, params))
+					dummy_action = FailedAction(
+						anum, params['NodeID'], zmq_info, timeout, params)
+					dummy_action.statusmsg += "\n" + traceback.format_exc()
+					worker.add_action(dummy_action)
 			except KeyError:
 				self.logger.error("Unknown capability {cap}".format(cap=capability))
 			finally:

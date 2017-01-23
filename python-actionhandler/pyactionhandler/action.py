@@ -21,7 +21,7 @@ class Action(object):
 		except Exception as e:
 			self.logger.debug(e)
 			self.statusmsg="ACTIONHANDLER CRASHED DURING ACTION"
-			self.error_output = traceback.format_exc()
+			self.statusmsg += "\n" + traceback.format_exc()
 			self.success=False
 			self.logger.critical(self.statusmsg)
 		return(self)
@@ -32,7 +32,6 @@ class Action(object):
 class FailedAction(Action):
 	def __call__(self):
 		self.statusmsg = "COULD NOT INITIALIZE ACTION"
-		self.error_output = traceback.format_exc()
 		self.success = False
 
 	def __str__(self):
