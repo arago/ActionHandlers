@@ -8,6 +8,8 @@ import winrm.exceptions
 import pyactionhandler.winrm.exceptions
 import logging
 
+from requests_kerberos.exceptions import KerberosExchangeError
+
 
 
 class WinRMCmdAction(Action):
@@ -45,8 +47,10 @@ class WinRMCmdAction(Action):
 			self.output, self.error_output = script.get_outputs()
 			self.system_rc = script.rs.status_code
 			self.success=True
-		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, pyactionhandler.winrm.exceptions.WinRMError) as e:
+		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, pyactionhandler.winrm.exceptions.WinRMError, KerberosExchangeError) as e:
 			self.statusmsg=str(e)
+			self.success=False
+			self.system_rc=-1
 			self.logger.error("[{anum}] An error occured during command execution on {node}: {err}".format(anum=self.num, node=self.node,err=str(e)))
 
 	def __call__(self):
