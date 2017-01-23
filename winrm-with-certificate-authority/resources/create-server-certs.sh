@@ -155,10 +155,10 @@ do
 	export HOSTNAME=$(cut -d. -f1 <<<"$SERVER")
 	export SAN="DNS:$HOSTNAME,DNS:$FQDN"
 	openssl req -batch -new -newkey rsa:4096 -nodes -keyout $PIPE \
-			-sha512 -config ./openssl-ap.cnf -extensions "$EXTBLOCK" \
+			-sha256 -config ./openssl-ap.cnf -extensions "$EXTBLOCK" \
 			-subj "$SUBJSTR/CN=$FQDN" 2>/dev/null \
 		| openssl x509 -req -CA root.crt -CAkey root.key \
-				  -CAcreateserial -days 365 -sha512 \
+				  -CAcreateserial -days 365 -sha256 \
 				  -extfile ./openssl-ap.cnf -extensions "$EXTBLOCK" \
 				  -passin env:ROOT_PASSWD 2>/dev/null \
 		| openssl pkcs12 -export -out "$OUTDIR$SERVER.pfx" \
