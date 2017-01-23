@@ -27,7 +27,7 @@ class Action(object):
 		return(self)
 
 	def __call__(self):
-		self.statusmsg="ActionHandler not implemented"
+		raise NotImplementedError
 
 class FailedAction(Action):
 	def __call__(self):
