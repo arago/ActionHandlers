@@ -3,7 +3,7 @@ This project contains commonly proven actionhandler configurations for AutoPilot
 
 We really do value contribution and feedback.
 
-https://autopilot.co/
+https://hiro.arago.co/
 
 # Contributing
 
@@ -14,11 +14,11 @@ If you submit content to this repository, it will be licensed under the MIT lice
 
 # Questions and Support
 
-For questions and support, please refer to our documentation https://autopilot.co/docs/ and visit our community http://tabtab.co/ for asking detailed questions.
+For questions and support, please refer to our documentation https://docs.hiro.arago.co/ and visit our community http://tabatab.co/ for asking detailed questions.
 
 # License for Action Handlers (MIT)
  
-Copyright (c) 2016 arago GmbH
+Copyright (c) 2017 arago GmbH
  
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
  
