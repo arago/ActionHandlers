@@ -105,7 +105,7 @@ Last step is to create a client certificate for AutoPilot. Replace `<country_cod
 touch autopilot.key && chmod 600 autopilot.key
 openssl genrsa -out autopilot.key 4096
 chmod 400 autopilot.key
-export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=autopilot" | openssl x509  -req -days 365  -CA root.crt -CAkey root.key -CAcreateserial -out autopilot.crt
+export SAN=_; openssl req -config openssl-ap.cnf -new -key autopilot.key -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=autopilot" | openssl x509 -req -days 365 -sha256 -CA root.crt -CAkey root.key -CAcreateserial -out autopilot.crt
 ```
 This will create two files, *autopilot.key* and *autopilot.crt*. The *.crt* certificate file needs to be copied to each server. It does not need password protection as it only contains the (public) certificate part.
 
