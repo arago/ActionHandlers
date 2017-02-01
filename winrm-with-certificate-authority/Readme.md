@@ -54,7 +54,7 @@ After you have a private key for your root certificate, create the certificate i
 
 ```bash
 touch root.crt && chmod 600 root.crt
-openssl req -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha512 -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=My AutoPilot root CA"
+openssl req -x509 -new -nodes -extensions v3_ca -key root.key -days 1024 -out root.crt -sha256 -subj "/C=<country_code>/ST=<state>/L=<city>/O=<company>/OU=<department>/CN=My AutoPilot root CA"
 chmod 400 root.crt
 ```
 
