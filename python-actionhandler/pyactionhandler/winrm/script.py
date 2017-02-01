@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 
 class Script(object):
 	psWrapper="""\
+$ProgressPreference = "SilentlyContinue"
 $OutputEncoding=[console]::OutputEncoding=[console]::InputEncoding=[system.text.encoding]::GetEncoding([System.Text.Encoding]::Default.CodePage)
 @'
 mode con: cols={cols}
@@ -11,6 +12,7 @@ mode con: cols={cols}
 exit $LastExitCode
 """
 	cmdWrapper="""\
+$ProgressPreference = "SilentlyContinue"
 $t = [IO.Path]::GetTempFileName() | ren -NewName {{ $_ -replace 'tmp$', 'bat' }} -PassThru
 @'
 mode con: cols={cols}
