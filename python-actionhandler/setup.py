@@ -10,7 +10,7 @@ def read(fname):
 
 setup(
     name = "pyactionhandler",
-    version = "1.1.1",
+    version = "1.1.2",
     author = "Marcus Klemm",
     author_email = "mklemm@arago.de",
     description = ("Python library for Arago HIRO ActionHandlers"),
