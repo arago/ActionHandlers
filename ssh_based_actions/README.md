@@ -70,7 +70,7 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
   Capability:
   - Name: ExecuteCommand
     Description: execute command on remote host
-    Command: ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ${Command}
+    Command: ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ${Command}
     Parameter:
     - Name: Command
       Description: command to execute
@@ -84,7 +84,7 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
       Default: root
   - Name: RunScript
     Description: run script on remote host
-    Interpreter: 'FNAME=`basename ${TEMPFILE}` ; scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${TEMPFILE} ${User}@${Hostname}: ; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ./$FNAME ; RESULT=$?; ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} rm -f ${FNAME}; exit $RESULT'
+    Interpreter: 'FNAME=`basename ${TEMPFILE}` ; scp -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${TEMPFILE} ${User}@${Hostname}: ; ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} ./$FNAME ; RESULT=$?; ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o LogLevel=quiet -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname} rm -f ${FNAME}; exit $RESULT'
     Command: ${Command}
     Parameter:
     - Name: Command
@@ -99,7 +99,7 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
       Default: root
   - Name: UploadFile
     Description: copy files/directories (recursively) to remote server
-    Command: scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -i /opt/autopilot/.ssh/id_rsa ${Source} ${User}@${Hostname}:${Target}
+    Command: scp -r -o StrictHostKeyChecking=no -o BatchMode=yes -i /opt/autopilot/.ssh/id_rsa ${Source} ${User}@${Hostname}:${Target}
     Parameter:
     - Name: Source
       Description: could be single file/directory or a list
@@ -115,7 +115,7 @@ You have to add the following stanza to section `GenericHandler:` of file `/opt/
       Default: ""
   - Name: DownloadFile
     Description: copy files/directories (recursively) from remote server
-    Command: if [ -n "${CreateTarget}" ]; then mkdir -p ${Target}; fi; scp -r -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname}:${Source} ${Target}
+    Command: if [ -n "${CreateTarget}" ]; then mkdir -p ${Target}; fi; scp -r -o StrictHostKeyChecking=no -o BatchMode=yes -i /opt/autopilot/.ssh/id_rsa ${User}@${Hostname}:${Source} ${Target}
     Parameter:
     - Name: Source
       Description: no list supported. but wildcards can be used
