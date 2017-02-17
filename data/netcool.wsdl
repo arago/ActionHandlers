@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- *************************************************** {COPYRIGHT-TOP-RM} ***
+* Licensed Materials - Property of IBM
+* "Restricted Materials of IBM"
+* 5724-S43
+*
+* (C) Copyright IBM Corporation 2006, 2014. All Rights Reserved.
+*
+* US Government Users Restricted Rights - Use, duplication, or
+* disclosure restricted by GSA ADP Schedule Contract with IBM Corp.
+******************************************************** {COPYRIGHT-END-RM} -->
+<definitions name="ImpactWebServiceListenerDLService" targetNamespace="http://response.micromuse.com/types" xmlns:tns="http://response.micromuse.com/types" xmlns="http://schemas.xmlsoap.org/wsdl/" xmlns:ns2="http://response.micromuse.com/types" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:ns1="http://schemas.xmlsoap.org/soap/http" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <types>
+        <schema targetNamespace="http://response.micromuse.com/types" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://response.micromuse.com/types" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:soap11-enc="http://schemas.xmlsoap.org/soap/encoding/" xmlns="http://www.w3.org/2001/XMLSchema">
+            <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
+            <complexType name="WSListenerException">
+                <sequence>
+                    <element name="detail" type="string" nillable="true"/>
+                </sequence>
+            </complexType>
+            <complexType name="runPolicy">
+                <sequence>
+                    <element name="arg0" type="string" nillable="true"/>
+                    <element name="arg1" type="tns:wslPolicyUserParameter" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+                    <element name="arg2" type="boolean"/>
+                </sequence>
+            </complexType>
+            <complexType name="wslPolicyUserParameter">
+                <sequence>
+                    <element name="desc" type="string" nillable="true"/>
+                    <element name="format" type="string" nillable="true"/>
+                    <element name="label" type="string" nillable="true"/>
+                    <element name="name" type="string" nillable="true"/>
+                    <element name="value" type="string" nillable="true"/>
+                </sequence>
+            </complexType>
+            <complexType name="runPolicyResponse">
+                <sequence>
+                    <element name="return" type="tns:PolicyExecutionResult" nillable="true" minOccurs="0" maxOccurs="unbounded"/>
+                </sequence>
+            </complexType>
+            <complexType name="PolicyExecutionResult">
+                <sequence>
+                    <element name="name" type="string" nillable="true"/>
+                    <element name="value" type="string" nillable="true"/>
+                </sequence>
+            </complexType>
+            <element name="WSListenerException" type="tns:WSListenerException"/>
+            <element name="runPolicy" type="tns:runPolicy"/>
+            <element name="runPolicyResponse" type="tns:runPolicyResponse"/>
+        </schema>
+    </types>
+    <message name="WSListenerException">
+        <part name="WSListenerException" element="ns2:WSListenerException"/>
+    </message>
+    <message name="ImpactWebServiceListenerDLIfc_runPolicy">
+        <part name="parameters" element="ns2:runPolicy"/>
+    </message>
+    <message name="ImpactWebServiceListenerDLIfc_runPolicyResponse">
+        <part name="result" element="ns2:runPolicyResponse"/>
+    </message>
+    <portType name="ImpactWebServiceListenerDLIfc">
+        <operation name="runPolicy">
+            <input message="tns:ImpactWebServiceListenerDLIfc_runPolicy"/>
+            <output message="tns:ImpactWebServiceListenerDLIfc_runPolicyResponse"/>
+            <fault name="WSListenerException" message="tns:WSListenerException"/>
+        </operation>
+    </portType>
+    <binding name="ImpactWebServiceListenerDLIfcBinding" type="tns:ImpactWebServiceListenerDLIfc">
+        <operation name="runPolicy">
+        <input>
+            <soap:body use="literal"/>
+        </input>
+        <output>
+            <soap:body use="literal"/>
+        </output>
+        <fault name="WSListenerException">
+        <soap:fault name="WSListenerException" use="literal"/></fault>
+        <soap:operation soapAction=" "/></operation>
+        <soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+    </binding>
+    <service name="ImpactWebServiceListenerDL">
+        <port name="ImpactWebServiceListenerDLIfcPort" binding="tns:ImpactWebServiceListenerDLIfcBinding">
+            <soap:address location="http://localhost:9080/jaxws/impact/ImpactWebServiceListenerDLIfc"/>
+        </port>
+    </service>
+</definitions>
