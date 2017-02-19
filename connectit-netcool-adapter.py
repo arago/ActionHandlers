@@ -52,6 +52,20 @@ class RequireJSON(object):
 				raise falcon.HTTPUnsupportedMediaType(
 					'This API only supports requests encoded as JSON.')
 
+class RESTLogger(object):
+	def __init__(self):
+		self.logger = logging.getLogger('root')
+	def process_request(self, req, resp):
+		#self.logger.debug("")
+		self.logger.debug(
+			"[TRACE] JSON data received via {op} at {uri}:\n".format(
+				op=req.method, uri=req.relative_uri)
+			+ json.dumps(
+				req.context['doc'],
+				sort_keys=True,
+				indent=4,
+				separators=(',', ': ')))
+
 class JSONTranslator(object):
 
 	def process_request(self, req, resp):
@@ -109,7 +123,8 @@ class RESTAPI(object):
 		self.app=falcon.API(middleware=[
 			AuthMiddleware(),
 			RequireJSON(),
-			JSONTranslator()
+			JSONTranslator(),
+			RESTLogger()
 		])
 		self.baseurl=baseurl
 		self.basepath=urlparse(baseurl).path
@@ -228,7 +243,6 @@ class Endpoint(object):
 		self.triggers = triggers
 
 	def on_post(self, req, resp, env):
-		self.logger.debug("[TRACE] Received JSON data:\n" + json.dumps(req.context['doc'],sort_keys=True, indent=4, separators=(',', ': ')))
 		self.logger.debug("New message for environment: {env}".format(
 			env=env))
 		for trigger in self.triggers:
