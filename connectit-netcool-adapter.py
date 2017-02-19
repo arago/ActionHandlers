@@ -106,7 +106,11 @@ class AuthMiddleware(object):
 
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint):
-		self.app=falcon.API()
+		self.app=falcon.API(middleware=[
+			AuthMiddleware(),
+			RequireJSON(),
+			JSONTranslator()
+		])
 		self.baseurl=baseurl
 		self.basepath=urlparse(baseurl).path
 		self.endpoint = endpoint
@@ -165,7 +169,9 @@ class StatusChange(SOAPHandler):
 					)
 				}, True)
 		except requests.exceptions.ConnectionError as e:
-			self.logger.error("SOAP call failed")
+			self.logger.error("SOAP call failed: " + str(e))
+		except requests.exceptions.InvalidURL as e:
+			self.logger.error("SOAP call failed: " + str(e))
 		except KeyError:
 			self.logger.warning(
 				"No SOAPHandler defined for environment: {env}".format(
@@ -222,20 +228,12 @@ class Endpoint(object):
 		self.triggers = triggers
 
 	def on_post(self, req, resp, env):
-		try:
-			message = req.stream.read().decode("utf-8")
-			data = json.loads(message)
-			self.logger.debug("[TRACE] Received JSON data:\n" + json.dumps(data,sort_keys=True, indent=4, separators=(',', ': ')))
-			self.logger.debug("New message for environment: {env}".format(
-				env=env))
-			for trigger in self.triggers:
-				trigger(data, env)
-			resp.status = falcon.HTTP_200
-		except ValueError as e:
-			self.logger.error(
-				"Message could not be decoded, invalid JSON")
-			self.logger.error(
-				"[TRACE] Message data: \n" + message)
+		self.logger.debug("[TRACE] Received JSON data:\n" + json.dumps(req.context['doc'],sort_keys=True, indent=4, separators=(',', ': ')))
+		self.logger.debug("New message for environment: {env}".format(
+			env=env))
+		for trigger in self.triggers:
+			trigger(req.context['doc'], env)
+		resp.status = falcon.HTTP_200
 
 class ConnectitDaemon(Daemon):
 	def run(self):
