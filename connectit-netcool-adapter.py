@@ -17,7 +17,7 @@ import signal
 from configparser import ConfigParser
 import logging, logging.config
 from connectit.daemon import Daemon
-import sys, falcon, json
+import sys, os, falcon, json
 from docopt import docopt
 from urllib.parse import urlparse, urlunparse
 import jsonschema, zeep, requests
@@ -30,13 +30,15 @@ class SOAPLogger(zeep.Plugin):
 		self.logger=logging.getLogger('root')
 
 	def ingress(self, envelope, http_headers, operation):
-		self.logger.debug("SOAP data received:\n" + etree.tostring(
+		self.logger.debug("[TRACE] SOAP data received:\n" + etree.tostring(
 			envelope, encoding='unicode', pretty_print=True))
 		return envelope, http_headers
 
 	def egress(self, envelope, http_headers, operation, binding_options):
-		self.logger.debug("SOAP data sent:\n" + etree.tostring(
-			envelope, encoding='unicode', pretty_print=True))
+		self.logger.debug(
+			"[TRACE] SOAP data sent to {addr}:\n".format(
+				addr=binding_options['address']) + etree.tostring(
+					envelope, encoding='unicode', pretty_print=True))
 		return envelope, http_headers
 
 class RESTAPI(object):
@@ -88,7 +90,7 @@ class StatusChange(SOAPHandler):
 
 	def change_status_in_netcool(self, env, eventId, status):
 		try:
-			self.soap_interface_map[env].service.runPolicy(
+			self.soap_interface_map[env].netcool_service.runPolicy(
 				"get_from_hiro", {
 					'desc': "HIRORecieveUpdate",
 					'format': "String",
@@ -157,28 +159,35 @@ class Endpoint(object):
 		self.triggers = triggers
 
 	def on_post(self, req, resp, env):
-		data = json.loads(req.stream.read().decode("utf-8"))
-		#self.logger.trace("Received JSON data:\n" + json.dumps(data,sort_keys=True, indent=4, separators=(',', ': ')))
-		self.logger.debug("New message for environment: {env}".format(
-			env=env))
-		for trigger in self.triggers:
-			trigger(data, env)
-		resp.status = falcon.HTTP_200
+		try:
+			message = req.stream.read().decode("utf-8")
+			data = json.loads(message)
+			self.logger.debug("[TRACE] Received JSON data:\n" + json.dumps(data,sort_keys=True, indent=4, separators=(',', ': ')))
+			self.logger.debug("New message for environment: {env}".format(
+				env=env))
+			for trigger in self.triggers:
+				trigger(data, env)
+			resp.status = falcon.HTTP_200
+		except ValueError as e:
+			self.logger.error(
+				"Message could not be decoded, invalid JSON")
+			self.logger.error(
+				"[TRACE] Message data: \n" + message)
 
 class ConnectitDaemon(Daemon):
 	def run(self):
 		config_path = '/opt/autopilot/connectit/conf/'
-		main_config_file = (
-			'{path}/connectit-netcool-adapter.conf'
-		).format(path=config_path)
-		interfaces_config_file = (
-			'{path}/connectit-netcool-adapter-netcool.conf'
-		).format(path=config_path)
+		main_config_file = os.path.join(
+			config_path, 'connectit-netcool-adapter.conf')
+		interfaces_config_file = os.path.join(
+			config_path, 'connectit-netcool-adapter-netcool.conf')
+
+		share_dir = os.path.join(
+			os.getenv('PYTHON_DATADIR'), 'connectit-netcool-adapter')
 
 		# Setup logging in normal operation
-		logging.config.fileConfig((
-			'{path}/connectit-netcool-adapter-logging.conf'
-		).format(path=config_path))
+		logging.config.fileConfig(os.path.join(
+			config_path, 'connectit-netcool-adapter-logging.conf'))
 		logger = logging.getLogger('root')
 
 		# Setup debug logging
@@ -210,20 +219,26 @@ class ConnectitDaemon(Daemon):
 			url=urlunparse(rest_url)))
 
 		soap_interfaces_map = {}
+		wsdl_file_path = os.path.join(share_dir, 'wsdl', 'netcool.wsdl')
 		for env in interfaces_config.sections():
-			logger.debug(
-				"Adding Netcool SOAP endpoint for {env} at {ep}".format(
-					env=env,
-					ep=interfaces_config[env]['Endpoint']))
 			session = requests.Session()
 			session.auth = requests.auth.HTTPBasicAuth(
 				interfaces_config[env]['Username'],
 				interfaces_config[env]['Password'])
+			logger.debug(
+				"Loading interface description from {file}".format(
+					file=wsdl_file_path))
 			soap_client = zeep.Client(
-				'file://data/netcool.wsdl',
+				'file://' + wsdl_file_path,
 				transport=zeep.Transport(session=session),
 				plugins=[SOAPLogger()]
 			)
+			logger.debug(
+				"Adding Netcool SOAP endpoint for {env} at {ep}".format(
+					env=env,
+					ep=interfaces_config[env]['Endpoint']))
+			soap_client.netcool_service = soap_client.create_service(
+				'{http://response.micromuse.com/types}ImpactWebServiceListenerDLIfcBinding', interfaces_config[env]['Endpoint'])
 			soap_interfaces_map[env]=soap_client
 
 		status_map = {
@@ -237,10 +252,12 @@ class ConnectitDaemon(Daemon):
 
 		triggers= [
 			Trigger(
-				open("schemas/event-status-change.json"),
+				open(os.path.join(
+					share_dir, "schemas/event-status-change.json")),
 				StatusChange(soap_interfaces_map, status_map)),
 			Trigger(
-				open("schemas/event-comment-added.json"),
+				open(os.path.join(
+					share_dir, "schemas/event-comment-added.json")),
 				CommentAdded(soap_interfaces_map))
 		]
 		server = pywsgi.WSGIServer(
@@ -264,7 +281,7 @@ class ConnectitDaemon(Daemon):
 
 if __name__ == "__main__":
 
-	args=docopt(__doc__, version='connectit-netcool-adapter 0.1')
+	args=docopt(__doc__, version='connectit-netcool-adapter 0.2')
 	daemon = ConnectitDaemon(args['--pidfile'], debug=args['--debug'])
 	if   args['start']:   daemon.start()
 	elif args['stop']:    daemon.stop()
