@@ -67,6 +67,8 @@ class RESTLogger(object):
 				separators=(',', ': ')))
 
 class JSONTranslator(object):
+	def __init__(self):
+		self.logger = logging.getLogger('root')
 
 	def process_request(self, req, resp):
 		if req.content_length in (None, 0): return
@@ -78,13 +80,28 @@ class JSONTranslator(object):
 				'A valid JSON document is required.')
 		try:
 			req.context['doc'] = json.loads(body.decode('utf-8'))
-		except (ValueError, UnicodeDecodeError):
+		except ValueError:
+			self.logger.debug(
+				"[TRACE] Malformed data received "
+				"via {op} ar {uri}:\n".format(
+					op=req.method,uri=req.relative_uri)
+				+ body.decode('utf-8')
+			)
 			raise falcon.HTTPError(
 				falcon.HTTP_753,
 				'Malformed JSON',
-				'Could not decode the request body. The '
-				'JSON was incorrect or not encoded as '
-				'UTF-8.')
+				'Could not decode the request body.')
+		except UnicodeDecodeError:
+			self.logger.debug(
+				"[TRACE] Malformed data received "
+				"via {op} ar {uri}:\n".format(
+					op=req.method,uri=req.relative_uri)
+				+ str(body)
+			)
+			raise falcon.HTTPError(
+				falcon.HTTP_753,
+				'Encoding error',
+				'Could not decode payload as UTF-8')
 
 	def process_response(self, req, resp, resource):
 		if 'result' not in req.context:
