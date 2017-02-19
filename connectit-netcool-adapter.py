@@ -78,6 +78,32 @@ class JSONTranslator(object):
 
 		resp.body = json.dumps(req.context['result'])
 
+class AuthMiddleware(object):
+
+	def process_request(self, req, resp):
+		credentials = req.get_header('Authorization')
+
+		challenges = ['Basic realm="My Server"']
+
+		if credentials is None:
+			description = ('Please provide an auth token '
+						   'as part of the request.')
+			raise falcon.HTTPUnauthorized(
+				'Auth token required',
+				description,
+				challenges)
+		if not self._credentials_are_valid(credentials):
+			description = ('The provided auth token is not valid. '
+						   'Please request a new token and try again.')
+			raise falcon.HTTPUnauthorized(
+				'Authentication required',
+				description,
+				challenges,
+				href='http://docs.example.com/auth')
+
+	def _credentials_are_valid(self, token):
+		return True
+
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint):
 		self.app=falcon.API()
