@@ -23,6 +23,7 @@ from urllib.parse import urlparse, urlunparse
 import jsonschema, zeep, requests
 import datetime
 from lxml import etree
+from base64 import b64decode
 
 class SOAPLogger(zeep.Plugin):
 	def __init__(self, *args, **kwargs):
@@ -110,6 +111,8 @@ class JSONTranslator(object):
 		resp.body = json.dumps(req.context['result'])
 
 class AuthMiddleware(object):
+	def __init__(self):
+		self.logger = logging.getLogger('root')
 
 	def process_request(self, req, resp):
 		credentials = req.get_header('Authorization')
@@ -132,8 +135,19 @@ class AuthMiddleware(object):
 				challenges,
 				href='http://docs.example.com/auth')
 
-	def _credentials_are_valid(self, token):
-		return True
+	def _credentials_are_valid(self, credentials):
+		try:
+			credentials = b64decode(
+				credentials.encode('ascii')[6:]).decode('ascii')
+			username, password = tuple(
+				falcon.uri.decode(item)
+				for item
+				in credentials.split(':', 1))
+		except Exception:
+			self.logger.error(
+				"Error decoding authentication credentials!")
+			return False
+		return username == 'stormking' and password == 'melange'
 
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint):
