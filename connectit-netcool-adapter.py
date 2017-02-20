@@ -386,10 +386,12 @@ class ConnectitDaemon(Daemon):
 
 
 if __name__ == "__main__":
-
 	args=docopt(__doc__, version='connectit-netcool-adapter 0.2')
 	daemon = ConnectitDaemon(args['--pidfile'], debug=args['--debug'])
-	if   args['start']:   daemon.start()
-	elif args['stop']:    daemon.stop()
-	elif args['restart']: daemon.restart()
+	if   args['start']:
+		daemon.start()
+	elif args['stop']:
+		daemon.stop()
+	elif args['restart']:
+		daemon.restart()
 	sys.exit(0)
