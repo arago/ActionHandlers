@@ -36,6 +36,12 @@ distutils.core.setup(
 				'config/connectit-netcool-adapter-logging.conf',
 				'config/connectit-netcool-adapter-netcool.conf'
 			]
+		),
+		(
+			'/etc/init.d/',
+			[
+				'etc/connectit-netcool-adapter'
+			]
 		)
 	]
 )
