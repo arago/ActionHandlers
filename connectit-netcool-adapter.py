@@ -117,7 +117,7 @@ class AuthMiddleware(object):
 	def process_request(self, req, resp):
 		credentials = req.get_header('Authorization')
 
-		challenges = ['Basic realm="My Server"']
+		challenges = ['Basic realm="connectit-netcool-adapter"']
 
 		if credentials is None:
 			description = ('Please provide an auth token '
