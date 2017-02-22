@@ -206,7 +206,7 @@ Register-PSSessionConfiguration Microsoft.Powershell32 -processorarchitecture x8
 Find the certificate thumbprint of your root CA (My AutoPilot root CA, line 8 in the example) in the cert store:
 
 ```powershell
-PS C:\Windows\System32\WindowsPowerShell\v1.0> Get-ChildItem -Path cert:\LocalMachine\Root
+Get-ChildItem -Path cert:\LocalMachine\Root
 
 Thumbprint                                Subject
 ----------                                -------
