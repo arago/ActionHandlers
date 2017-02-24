@@ -21,9 +21,92 @@ import sys, os, falcon, json
 from docopt import docopt
 from urllib.parse import urlparse, urlunparse
 import jsonschema, zeep, requests
-import datetime
+import datetime, time
 from lxml import etree
 from base64 import b64decode
+import lmdb
+import jsonmerge
+import functools
+
+
+def prettify(data):
+	try:
+		data = data.decode('utf-8')
+	except:
+		pass
+	try:
+		data=json.loads(data)
+	except:
+		pass
+	return json.dumps(
+		data,
+		sort_keys=True,
+		indent=4,
+		separators=(',', ': '))
+
+class DeltaStore(object):
+	def __init__(self, db_path, max_size, schemafile):
+		self.logger = logging.getLogger('root')
+		self.lmdb_env_main = lmdb.open(
+			os.path.join(db_path, "main"),
+			map_size=max_size*95/100,
+			subdir=False,
+			max_dbs=10,
+			writemap=True,
+			max_readers=16,
+			max_spare_txns=10)
+		self.lmdb_env_ts = lmdb.open(
+			os.path.join(db_path, "timestamps"),
+			map_size=max_size*5/100,
+			subdir=False,
+			max_dbs=10,
+			writemap=True,
+			max_readers=16,
+			max_spare_txns=10)
+		self.logger.debug(
+			"[LMDB] db = env.open_db(dupsort=True, dupfixed=False)")
+		self.db_main = self.lmdb_env_main.open_db(
+			dupsort=True, dupfixed=False)
+		self.db_ts = self.lmdb_env_ts.open_db()
+		self.merger = jsonmerge.Merger(json.load(schemafile))
+	def close(self):
+		self.lmdb_env_main.close()
+		self.lmdb_env_ts.close()
+	def merge(self, base, delta):
+		self.logger.debug("Merging ...")
+		base = json.loads(base.decode('utf-8'))
+		delta = json.loads(delta.decode('utf-8'))
+		result = self.merger.merge(base, delta)
+		return json.dumps(result).encode('utf-8')
+	def get_merged(self, key):
+		self.logger.debug("GET merged")
+		with self.lmdb_env_main.begin(db=self.db_main) as txn:
+			with txn.cursor() as cursor:
+				cursor.set_key(key.encode('utf-8'))
+				try:
+					self.logger.debug(self.db_main)
+					self.logger.debug("Found {num} deltas".format(
+					num=cursor.count()))
+				except:
+					pass
+				result = functools.reduce(
+					self.merge, cursor.iternext_dup())
+		return result
+	def append(self, key, delta):
+		with self.lmdb_env_main.begin(
+				db=self.db_main, write=True) as txn_main:
+			with self.lmdb_env_ts.begin(db=self.db_ts,
+										write=True) as txn_ts:
+				ts = time.time()
+				txn_main.put(
+					key=key.encode('utf-8'),
+					value=delta.encode('utf-8'),
+					dupdata=True)
+				txn_ts.put(
+					key=key.encode('utf-8'),
+					value = str(ts).encode('utf-8'),
+					overwrite=True
+				) # Think about optimization!
 
 class SOAPLogger(zeep.Plugin):
 	def __init__(self, *args, **kwargs):
@@ -58,14 +141,15 @@ class RESTLogger(object):
 		self.logger = logging.getLogger('root')
 	def process_request(self, req, resp):
 		#self.logger.debug("")
-		self.logger.debug(
-			"[TRACE] JSON data received via {op} at {uri}:\n".format(
-				op=req.method, uri=req.relative_uri)
-			+ json.dumps(
-				req.context['doc'],
-				sort_keys=True,
-				indent=4,
-				separators=(',', ': ')))
+		if 'doc' in req.context:
+			self.logger.debug(
+				"[TRACE] JSON data received via {op} at {uri}:\n".format(
+					op=req.method, uri=req.relative_uri)
+				+ json.dumps(
+					req.context['doc'],
+					sort_keys=True,
+					indent=4,
+					separators=(',', ': ')))
 
 class JSONTranslator(object):
 	def __init__(self):
@@ -111,7 +195,9 @@ class JSONTranslator(object):
 		resp.body = json.dumps(req.context['result'])
 
 class AuthMiddleware(object):
-	def __init__(self):
+	def __init__(self, auth_config):
+		self.username = auth_config.get('Authentication', 'Username')
+		self.password = auth_config.get('Authentication', 'Password')
 		self.logger = logging.getLogger('root')
 
 	def process_request(self, req, resp):
@@ -120,14 +206,14 @@ class AuthMiddleware(object):
 		challenges = ['Basic realm="connectit-netcool-adapter"']
 
 		if credentials is None:
-			description = ('Please provide an auth token '
-						   'as part of the request.')
+			description = ('Please provide authentication '
+						   'credentials as part of the request.')
 			raise falcon.HTTPUnauthorized(
 				'Auth token required',
 				description,
 				challenges)
 		if not self._credentials_are_valid(credentials):
-			description = ('The provided auth token is not valid. '
+			description = ('The provided credentials are not valid. '
 						   'Please request a new token and try again.')
 			raise falcon.HTTPUnauthorized(
 				'Authentication required',
@@ -143,19 +229,21 @@ class AuthMiddleware(object):
 				falcon.uri.decode(item)
 				for item
 				in credentials.split(':', 1))
+			self.logger.debug(username + ":" + self.username)
+			self.logger.debug(password + ":" + self.password)
 		except Exception:
 			self.logger.error(
 				"Error decoding authentication credentials!")
 			return False
-		return username == 'stormking' and password == 'melange'
+		return username == self.username and password == self.password
 
 class RESTAPI(object):
-	def __init__(self, baseurl, endpoint):
+	def __init__(self, baseurl, endpoint, config):
 		self.app=falcon.API(middleware=[
-			AuthMiddleware(),
 			RequireJSON(),
 			JSONTranslator(),
-			RESTLogger()
+			RESTLogger(),
+			#AuthMiddleware(config)
 		])
 		self.baseurl=baseurl
 		self.basepath=urlparse(baseurl).path
@@ -234,6 +322,9 @@ class StatusChange(SOAPHandler):
 			data['free']['eventNormalizedStatus'])
 
 class CommentAdded(SOAPHandler):
+	def __init__(self, soap_interface_map={}, delta_store_map={}):
+		super().__init__(soap_interface_map)
+		self.delta_store_map = delta_store_map
 
 	def log_comment(self, env, timestamp, eventId, message):
 			self.logger.info((
@@ -244,6 +335,14 @@ class CommentAdded(SOAPHandler):
 						timestamp/1000).strftime(
 							'%Y-%m-%d %H:%M:%S'),
 					cmt=message))
+
+	def store_delta(self, env, eventId, data):
+		try:
+			self.delta_store_map[env].append(eventId, json.dumps(data))
+		except KeyError:
+			self.logger.warning(
+				"No DeltaStore defined for environment: {env}".format(
+					env=env))
 
 	def add_comment_to_netcool(self, env, timestamp, eventId, message):
 			try:
@@ -257,6 +356,10 @@ class CommentAdded(SOAPHandler):
 		for comment in sorted(
 				data['opt']['comment'],
 				key=lambda comment: comment['opt']['timestamp']):
+			self.store_delta(
+				env,
+				data['mand']['eventId'],
+				data)
 			self.log_comment(
 				env,
 				int(comment['opt']['timestamp']),
@@ -269,9 +372,10 @@ class CommentAdded(SOAPHandler):
 				comment['opt']['content'])
 
 class Endpoint(object):
-	def __init__(self, triggers):
+	def __init__(self, triggers, store):
 		self.logger = logging.getLogger('root')
 		self.triggers = triggers
+		self.store=store
 
 	def on_post(self, req, resp, env):
 		self.logger.debug("New message for environment: {env}".format(
@@ -279,6 +383,14 @@ class Endpoint(object):
 		for trigger in self.triggers:
 			trigger(req.context['doc'], env)
 		resp.status = falcon.HTTP_200
+
+	def on_get(self, req, resp, env):
+		try:
+			event_id=req.get_param('id')
+			self.logger.debug("MERGED:\n" + prettify(self.store[env].get_merged(event_id)))
+		except Exception as e:
+			self.logger.debug(e)
+			raise
 
 class ConnectitDaemon(Daemon):
 	def run(self):
@@ -292,8 +404,12 @@ class ConnectitDaemon(Daemon):
 			os.getenv('PYTHON_DATADIR'), 'connectit-netcool-adapter')
 
 		# Setup logging in normal operation
-		logging.config.fileConfig(os.path.join(
-			config_path, 'connectit-netcool-adapter-logging.conf'))
+		try:
+			logging.config.fileConfig(os.path.join(
+				config_path, 'connectit-netcool-adapter-logging.conf'))
+		except Exception as e:
+			print(e, file=sys.stderr)
+			sys.exit(5)
 		logger = logging.getLogger('root')
 
 		# Setup debug logging
@@ -326,6 +442,8 @@ class ConnectitDaemon(Daemon):
 
 		soap_interfaces_map = {}
 		wsdl_file_path = os.path.join(share_dir, 'wsdl', 'netcool.wsdl')
+		db_path = '/tmp/testdb'
+		delta_store_map={}
 		for env in interfaces_config.sections():
 			session = requests.Session()
 			session.auth = requests.auth.HTTPBasicAuth(
@@ -346,6 +464,19 @@ class ConnectitDaemon(Daemon):
 			soap_client.netcool_service = soap_client.create_service(
 				'{http://response.micromuse.com/types}ImpactWebServiceListenerDLIfcBinding', interfaces_config[env]['Endpoint'])
 			soap_interfaces_map[env]=soap_client
+			try:
+				os.makedirs(
+					os.path.join(db_path, env),
+					mode=0o700, exist_ok=True)
+			except OSError as e:
+				self.logger.critical("Can't create data directory: " + e)
+				sys.exit(5)
+
+			delta_store_map[env]=DeltaStore(
+				db_path = os.path.join(db_path, env),
+				max_size = 1024*1024*100,
+				schemafile = open(os.path.join(
+					share_dir, "schemas/event-comment-added.json")))
 
 		status_map = {
 			"New":3001,
@@ -355,6 +486,7 @@ class ConnectitDaemon(Daemon):
 			"Escalated":3004,
 			"Closed":3005
 		}
+		logger.debug("[LMDB] env = lmdb.open(\"/tmp/delta_store\", map_size=1048576000, max_dbs=10, writemap=True, max_readers=16, max_spare_txns=10)")
 
 		triggers= [
 			Trigger(
@@ -364,13 +496,14 @@ class ConnectitDaemon(Daemon):
 			Trigger(
 				open(os.path.join(
 					share_dir, "schemas/event-comment-added.json")),
-				CommentAdded(soap_interfaces_map))
+				CommentAdded(soap_interfaces_map, delta_store_map))
 		]
 		server = pywsgi.WSGIServer(
 			(rest_url.hostname, rest_url.port),
 			RESTAPI(
 				rest_url.path,
-				Endpoint(triggers)
+				Endpoint(triggers, delta_store_map),
+				config=adapter_config
 			).app,
 			log=None,
 			error_log=logger)

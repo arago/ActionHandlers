@@ -22,6 +22,7 @@
 			"properties": {
 				"comment": {
 					"type": "array",
+					"mergeStrategy": "append",
 					"minItems":1,
 					"items": {
 						"type":"object",
