@@ -9,7 +9,7 @@ name = 'connectit-netcool-adapter'
 
 distutils.core.setup(
 	name=name,
-	version='0.2',
+	version='0.3',
 	author="Marcus Klemm",
 	author_email="mklemm@arago.de",
 	url="https://arago.co",
