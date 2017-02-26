@@ -73,34 +73,49 @@ class DeltaStore(object):
 		self.lmdb_env_main.close()
 		self.lmdb_env_ts.close()
 	def merge(self, base, delta):
-		self.logger.debug("Merging ...")
 		base = json.loads(base.decode('utf-8'))
 		delta = json.loads(delta.decode('utf-8'))
 		result = self.merger.merge(base, delta)
 		return json.dumps(result).encode('utf-8')
 	def get_merged(self, key):
-		self.logger.debug("GET merged")
 		with self.lmdb_env_main.begin(db=self.db_main) as txn:
 			with txn.cursor() as cursor:
-				cursor.set_key(key.encode('utf-8'))
-				try:
-					self.logger.debug(self.db_main)
-					self.logger.debug("Found {num} deltas".format(
-					num=cursor.count()))
-				except:
-					pass
-				result = functools.reduce(
-					self.merge, cursor.iternext_dup())
-		return result
+				return cursor.get(key.encode('utf-8'))
+		# 		cursor.set_key(key.encode('utf-8'))
+		# 		try:
+		# 			self.logger.debug("Found {num} deltas".format(
+		# 			num=cursor.count()))
+		# 		except:
+		# 			pass
+		# 		result = functools.reduce(
+		# 			self.merge, cursor.iternext_dup())
+		# return result
+	def get_all(self):
+		with self.lmdb_env_main.begin(db=self.db_main) as txn:
+			with txn.cursor() as cursor:
+				cursor.first()
+				for key, value in cursor.iternext(keys=True, values=True):
+					self.logger.debug("{k}:{v}".format(
+						k=key.decode('utf-8'),
+						v=value.decode('utf-8')
+					))
+		return b'{}'
 	def append(self, key, delta):
 		with self.lmdb_env_main.begin(
 				db=self.db_main, write=True) as txn_main:
 			with self.lmdb_env_ts.begin(db=self.db_ts,
 										write=True) as txn_ts:
 				ts = time.time()
+				try:
+					base = txn_main.get(key=key.encode('utf-8'))
+					ref = delta.encode('utf-8')
+					merged = self.merge(base, ref)
+				except Exception as e:
+					self.logger.debug(e)
+					merged = delta.encode('utf-8')
 				txn_main.put(
 					key=key.encode('utf-8'),
-					value=delta.encode('utf-8'),
+					value=merged,
 					dupdata=True)
 				txn_ts.put(
 					key=key.encode('utf-8'),
@@ -189,10 +204,10 @@ class JSONTranslator(object):
 				'Could not decode payload as UTF-8')
 
 	def process_response(self, req, resp, resource):
-		if 'result' not in req.context:
+		if 'result' not in resp.context:
 			return
 
-		resp.body = json.dumps(req.context['result'])
+		resp.body = json.dumps(resp.context['result'])
 
 class AuthMiddleware(object):
 	def __init__(self, auth_config):
@@ -371,6 +386,53 @@ class CommentAdded(SOAPHandler):
 				data['mand']['eventId'],
 				comment['opt']['content'])
 
+class StatusEjected(SOAPHandler):
+	def __init__(self, delta_store_map, soap_interfaces_map, status_map):
+		super().__init__(soap_interfaces_map)
+		self.delta_store_map = delta_store_map
+	def get_status(self, data):
+		return data['free']['eventNormalizedStatus']
+	def get_comments(self, env, eventId):
+		return json.loads(self.delta_store_map[env].get_merged(eventId).decode('utf-8'))['opt']['comment']
+	def open_ticket_in_snow(self, env, eventId, status, comments=[]):
+		try:
+			result = self.soap_interface_map[env].snow_service.execute(
+				UBStable="incident",
+				UBSaction="create",
+				system="",
+				summary="",
+				details="",
+				netcool_id=eventId,
+				arago_id=eventId,
+				notes="\n".join(["[{ts}] {body}".format(ts=comment['timestamp'], body=comment['content']) for comment in comments]),
+				tranasction_time=datetime.datetime.now().strftime(
+					'%Y-%m-%d %H:%M:%S')
+				)
+			self.logger.debug(result)
+		except requests.exceptions.ConnectionError as e:
+			self.logger.error("SOAP call failed: " + str(e))
+		except requests.exceptions.InvalidURL as e:
+			self.logger.error("SOAP call failed: " + str(e))
+		except KeyError:
+			self.logger.warning(
+				"No SOAPHandler defined for environment: {env}".format(
+					env=env))
+	def __call__(self, data, env):
+		status = self.get_status(data)
+		comments = [item['opt'] for item in self.get_comments(
+			env,
+			data['mand']['eventId']
+		)]
+		self.open_ticket_in_snow(
+			env,
+			data['mand']['eventId'],
+			status,
+			comments
+		)
+		self.logger.debug(status)
+		for comment in comments:
+			self.logger.debug(comment['content'])
+
 class Endpoint(object):
 	def __init__(self, triggers, store):
 		self.logger = logging.getLogger('root')
@@ -387,7 +449,10 @@ class Endpoint(object):
 	def on_get(self, req, resp, env):
 		try:
 			event_id=req.get_param('id')
-			self.logger.debug("MERGED:\n" + prettify(self.store[env].get_merged(event_id)))
+			if event_id:
+				resp.context['result'] = json.loads(self.store[env].get_merged(event_id).decode('utf-8'))
+			else:
+				resp.context['result'] = json.loads(self.store[env].get_all().decode('utf-8'))
 		except Exception as e:
 			self.logger.debug(e)
 			raise
@@ -442,6 +507,7 @@ class ConnectitDaemon(Daemon):
 
 		soap_interfaces_map = {}
 		wsdl_file_path = os.path.join(share_dir, 'wsdl', 'netcool.wsdl')
+		snow_wsdl_file_path = os.path.join(share_dir, 'wsdl', 'snow.wsdl')
 		db_path = '/tmp/testdb'
 		delta_store_map={}
 		for env in interfaces_config.sections():
@@ -478,6 +544,20 @@ class ConnectitDaemon(Daemon):
 				schemafile = open(os.path.join(
 					share_dir, "schemas/event-comment-added.json")))
 
+		session = requests.Session()
+		session.auth = requests.auth.HTTPBasicAuth(
+			'FR28981',
+			'password')
+		snow_soap_client = zeep.Client(
+				'file://' + snow_wsdl_file_path,
+				transport=zeep.Transport(session=session),
+				plugins=[SOAPLogger()]
+			)
+		snow_soap_client.snow_service = snow_soap_client.create_service(
+			'{http://www.service-now.com/UBSTask}ServiceNowSoap',
+			'https://gsnowdev.ubsdev.net/webservices/UBSTask.do?SOAP')
+		snow_soap_int_map={"DEV":snow_soap_client}
+
 		status_map = {
 			"New":3001,
 			"Assigned":3002,
@@ -496,7 +576,14 @@ class ConnectitDaemon(Daemon):
 			Trigger(
 				open(os.path.join(
 					share_dir, "schemas/event-comment-added.json")),
-				CommentAdded(soap_interfaces_map, delta_store_map))
+				CommentAdded(soap_interfaces_map, delta_store_map)),
+			Trigger(
+				open(os.path.join(
+					share_dir, "schemas/event-status-ejected.json")),
+				StatusEjected(
+					delta_store_map,
+					snow_soap_int_map,
+					status_map))
 		]
 		server = pywsgi.WSGIServer(
 			(rest_url.hostname, rest_url.port),
