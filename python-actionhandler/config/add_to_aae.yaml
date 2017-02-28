@@ -1,6 +1,0 @@
-ActionHandlers:
-  ActionHandler:
-  - URL: tcp://127.0.0.1:7289
-    SubscribeURL: ''
-    CapabilityXML: /opt/autopilot/conf/pyactionhandler/WinRMActionHandler.xml
-    RequestTimeout: 60
