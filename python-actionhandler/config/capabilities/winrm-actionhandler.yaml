@@ -12,7 +12,7 @@
     Parameter: 
     - Name: Command
       Mandatory: true
-      Description: "The DOS command to execute"
+      Description: "The Powershell command to execute"
     - Name: Hostname
       Description: "The name of the remote Windows machine"
   Applicability:
