@@ -6,7 +6,7 @@
       Mandatory: true
       Description: "The DOS command to execute"
     - Name: Hostname
-      Description: "The name of the remote Windows machine"
+      Description: "The hostname of the remote Windows machine"
   - Name: ExecutePowershell
     Description: "Execute a Powershell command on a remote Windows machine"
     Parameter: 
@@ -14,7 +14,7 @@
       Mandatory: true
       Description: "The Powershell command to execute"
     - Name: Hostname
-      Description: "The name of the remote Windows machine"
+      Description: "The hostname of the remote Windows machine"
   Applicability:
   - Priority: 100
     ModelFilter: 
