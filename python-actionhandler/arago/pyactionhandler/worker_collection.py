@@ -1,8 +1,9 @@
 import time
 import gevent
+import gevent.queue
 from greenlet import GreenletExit
-from pyactionhandler.worker import Worker
-from pyactionhandler import FailedAction
+from arago.pyactionhandler.worker import Worker
+from arago.pyactionhandler.action import FailedAction
 import sys
 import logging
 import traceback

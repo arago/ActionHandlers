@@ -19,16 +19,15 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-prog=autopilot-counting-rhyme-actionhandler
-VENV=/opt/autopilot/engine/python-actionhandler
+prog=autopilot-counting-rhyme-actionhandler.py
+SCL=hiro_integration
 pidfile=/var/run/autopilot-counting-rhyme-actionhandler.pid
 RETVAL=0
 
 
 start() {
     echo -n $"Starting $prog: "
-    . "$VENV/bin/activate"
-    autopilot-counting-rhyme-actionhandler.py start
+    scl enable "$SCL" "\"$prog\" --pidfile=\"$pidfile\" start"
     RETVAL=$?
     echo -n
     [ $RETVAL = 0 ] && echo -e '[\e[32m OK \e[m]'

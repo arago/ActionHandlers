@@ -1,4 +1,4 @@
-#!/opt/autopilot/engine/python-actionhandler/bin/python3.5
+#!/usr/bin/env python
 import gevent
 from gevent import monkey; monkey.patch_all()
 import gevent.hub
@@ -7,7 +7,12 @@ import signal
 from docopt import docopt
 import logging
 import logging.config
-from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon, Action
+from arago.pyactionhandler.worker_collection import WorkerCollection
+from arago.pyactionhandler.handler import SyncHandler
+from arago.pyactionhandler.capability import Capability
+from arago.common.configparser import ConfigParser
+from arago.common.daemon import daemon as Daemon
+from arago.pyactionhandler.action import Action
 
 ############################### "Counting rhyme" example Actionhandler ###############################
 #                                                                                                    #
@@ -114,10 +119,10 @@ class ActionHandlerDaemon(Daemon):
 
 		# Open config file (not actually used in this example)
 		actionhandler_config=ConfigParser()
-		actionhandler_config.read('/opt/autopilot/conf/pyactionhandler/counting-rhyme-actionhandler.conf')
+		actionhandler_config.read('/opt/autopilot/conf/external_actionhandlers/counting-rhyme-actionhandler.conf')
 
 		# Setup logging in normal operation
-		logging.config.fileConfig('/opt/autopilot/conf/pyactionhandler/counting-rhyme-actionhandler-log.conf')
+		logging.config.fileConfig('/opt/autopilot/conf/external_actionhandlers/counting-rhyme-actionhandler-log.conf')
 		logger = logging.getLogger('root')
 
 		# Setup debug logging (see commandline interface at the end of the file)

@@ -15,7 +15,7 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-import pyactionhandler.protobuf.CommonTypes_pb2 as CommonTypes__pb2
+from arago.pyactionhandler.protobuf import CommonTypes_pb2 as CommonTypes__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(

@@ -5,7 +5,9 @@ if os.environ.get('USER','') == 'vagrant':
 
 import distutils.core
 
-setup(
+name = 'arago-pyactionhandler'
+
+distutils.core.setup(
 	name = "arago-pyactionhandler",
 	version = "2.0",
 	author = "Marcus Klemm",
@@ -21,7 +23,7 @@ An ActionHandler is used to access target systems in
 order to execute commands. This is not limited to
 shell commands but can be anything that provides some
 kind of command line or API, e.g. SQL.
-"""
+	""",
 	classifiers=[
 		"Development Status :: 5 - Production/Stable",
 		"Topic :: Utilities",
