@@ -1,4 +1,4 @@
-from pyactionhandler.winrm.helper import psesc
+from arago.pyactionhandler.plugins.winrm.helper import psesc
 import xml.etree.ElementTree as ET
 
 class Script(object):

@@ -19,16 +19,15 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-prog=autopilot-winrm-actionhandler
-VENV=/opt/autopilot/engine/python-actionhandler
-pidfile=/var/run/autopilot-ayehu-actionhandler.pid
+prog=hiro-ayehu-actionhandler.py
+SCL=hiro_integration
+pidfile=/var/run/hiro-ayehu-actionhandler.pid
 RETVAL=0
 
 
 start() {
     echo -n $"Starting $prog: "
-    . "$VENV/bin/activate"
-    autopilot-ayehu-actionhandler.py start
+    scl enable "$SCL" "\"$prog\" --pidfile=\"$pidfile\" start"
     RETVAL=$?
     echo -n
     [ $RETVAL = 0 ] && echo -e '[\e[32m OK \e[m]'

@@ -33,7 +33,7 @@ kind of command line or API, e.g. SQL.
 			  'arago.pyactionhandler.protobuf'
 	],
 	install_requires=['gevent', 'docopt', 'zmq', 'protobuf'],
-	scripts=['bin/autopilot-counting-rhyme-actionhandler.py'],
+	scripts=['bin/hiro-counting-rhyme-actionhandler.py'],
 	data_files=[
 		(
 			'/opt/autopilot/conf/external_actionhandlers/',
@@ -50,7 +50,7 @@ kind of command line or API, e.g. SQL.
 			]
 		),
 		(
-			'/etc/init.d/', ['etc/init.d/autopilot-counting-rhyme-actionhandler']
+			'/etc/init.d/', ['etc/init.d/hiro-counting-rhyme-actionhandler']
 		)
 	]
 )

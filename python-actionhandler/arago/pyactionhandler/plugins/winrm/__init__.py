@@ -1,11 +1,11 @@
 import gevent
 
-from pyactionhandler import Action
-from pyactionhandler.winrm.session import krb5Session
-from pyactionhandler.winrm.script import Script
+from arago.pyactionhandler.action import Action
+from arago.pyactionhandler.plugins.winrm.auth.kerberos import krb5Session
+from arago.pyactionhandler.plugins.winrm.script import Script
 
 import winrm.exceptions
-import pyactionhandler.winrm.exceptions
+import arago.pyactionhandler.plugins.winrm.exceptions
 import logging
 
 from requests_kerberos.exceptions import KerberosExchangeError
@@ -47,7 +47,7 @@ class WinRMCmdAction(Action):
 			self.output, self.error_output = script.get_outputs()
 			self.system_rc = script.rs.status_code
 			self.success=True
-		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, pyactionhandler.winrm.exceptions.WinRMError, KerberosExchangeError) as e:
+		except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, arago.pyactionhandler.plugins.winrm.exceptions.WinRMError, KerberosExchangeError) as e:
 			self.statusmsg=str(e)
 			self.success=False
 			self.system_rc=-1

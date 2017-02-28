@@ -1,4 +1,4 @@
-#!/opt/autopilot/engine/python-actionhandler/bin/python3.5
+#!/usr/bin/env python
 import gevent
 from gevent import pywsgi
 from gevent import monkey; monkey.patch_all()
@@ -9,19 +9,23 @@ import time
 from docopt import docopt
 import logging
 import logging.config
-from pyactionhandler import WorkerCollection, SyncHandler, Capability, ConfigParser, Daemon
-from pyactionhandler.winrm import WinRMCmdAction, WinRMPowershellAction
+from arago.pyactionhandler.worker_collection import WorkerCollection
+from arago.pyactionhandler.handler import SyncHandler
+from arago.pyactionhandler.capability import Capability
+from arago.common.configparser import ConfigParser
+from arago.common.daemon import daemon as Daemon
+from arago.pyactionhandler.plugins.winrm import WinRMCmdAction, WinRMPowershellAction
 
 class ActionHandlerDaemon(Daemon):
 	def run(self):
 
 		actionhandler_config=ConfigParser()
 		actionhandler_config.read((
-			'/opt/autopilot/conf/pyactionhandler/'
+			'/opt/autopilot/conf/external_actionhandlers/'
 			'winrm-actionhandler.conf'))
 
 		logging.config.fileConfig((
-			'/opt/autopilot/conf/pyactionhandler/'
+			'/opt/autopilot/conf/external_actionhandlers/'
 			'winrm-actionhandler-log.conf'))
 		logger = logging.getLogger('root')
 		if self.debug:
