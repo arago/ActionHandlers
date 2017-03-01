@@ -15,14 +15,14 @@
 				"eventName",
 				"instance",
 				"sourceId",
-				"description"]
+				"description"
+			]
 		},
 		"opt": {
 			"type":"object",
 			"properties": {
 				"comment": {
 					"type": "array",
-					"mergeStrategy": "append",
 					"minItems":1,
 					"items": {
 						"type":"object",
@@ -51,5 +51,5 @@
 		"sdfType": {"type":"string", "enum":["EVENT"]},
 		"sdfVersion": {"type":"string", "enum":["1.0"]}
 	},
-	"required": ["opt", "sdfType", "sdfVersion"]
+	"required": ["mand", "opt", "sdfType", "sdfVersion"]
 }

@@ -27,6 +27,8 @@ from base64 import b64decode
 import lmdb
 import jsonmerge
 import functools
+import itertools
+from lz4 import compress, uncompress
 
 
 def prettify(data):
@@ -44,89 +46,131 @@ def prettify(data):
 		indent=4,
 		separators=(',', ': '))
 
+def decode_bjson(bjson):
+	return json.loads(bjson.decode('utf-8'))
+def encode_bjson(data):
+	return json.dumps(data).encode('utf-8')
+
 class DeltaStore(object):
 	def __init__(self, db_path, max_size, schemafile):
 		self.logger = logging.getLogger('root')
-		self.lmdb_env_main = lmdb.open(
-			os.path.join(db_path, "main"),
-			map_size=max_size*95/100,
+		self.logger.debug("CREATING {o}".format(o=self))
+		self.lmdb = lmdb.open(
+			db_path,
+			map_size=max_size,
 			subdir=False,
-			max_dbs=10,
+			max_dbs=5,
 			writemap=True,
 			max_readers=16,
 			max_spare_txns=10)
-		self.lmdb_env_ts = lmdb.open(
-			os.path.join(db_path, "timestamps"),
-			map_size=max_size*5/100,
-			subdir=False,
-			max_dbs=10,
-			writemap=True,
-			max_readers=16,
-			max_spare_txns=10)
-		self.logger.debug(
-			"[LMDB] db = env.open_db(dupsort=True, dupfixed=False)")
-		self.db_main = self.lmdb_env_main.open_db(
-			dupsort=True, dupfixed=False)
-		self.db_ts = self.lmdb_env_ts.open_db()
+		self.index_name = 'index'.encode('utf-8')
+		self.deltas_name = 'deltas'.encode('utf-8')
+		self.mtimes_name = 'mtimes'.encode('utf-8')
+		with self.lmdb.begin(write=True) as txn:
+			self.lmdb.open_db(
+				key=self.index_name, txn=txn, dupsort=True)
+			self.lmdb.open_db(
+				key=self.mtimes_name, txn=txn)
+			self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+		self.delta_idx = self.get_delta_idx()
 		self.merger = jsonmerge.Merger(json.load(schemafile))
-	def close(self):
-		self.lmdb_env_main.close()
-		self.lmdb_env_ts.close()
-	def merge(self, base, delta):
-		base = json.loads(base.decode('utf-8'))
-		delta = json.loads(delta.decode('utf-8'))
-		result = self.merger.merge(base, delta)
-		return json.dumps(result).encode('utf-8')
-	def get_merged(self, key):
-		with self.lmdb_env_main.begin(db=self.db_main) as txn:
-			with txn.cursor() as cursor:
-				return cursor.get(key.encode('utf-8'))
-		# 		cursor.set_key(key.encode('utf-8'))
-		# 		try:
-		# 			self.logger.debug("Found {num} deltas".format(
-		# 			num=cursor.count()))
-		# 		except:
-		# 			pass
-		# 		result = functools.reduce(
-		# 			self.merge, cursor.iternext_dup())
-		# return result
-	def get_all(self):
-		with self.lmdb_env_main.begin(db=self.db_main) as txn:
-			with txn.cursor() as cursor:
-				cursor.first()
-				for key, value in cursor.iternext(keys=True, values=True):
-					self.logger.debug("{k}:{v}".format(
-						k=key.decode('utf-8'),
-						v=value.decode('utf-8')
-					))
-		return b'{}'
-	def append(self, key, delta):
-		with self.lmdb_env_main.begin(
-				db=self.db_main, write=True) as txn_main:
-			with self.lmdb_env_ts.begin(db=self.db_ts,
-										write=True) as txn_ts:
-				ts = time.time()
-				try:
-					base = txn_main.get(key=key.encode('utf-8'))
-					ref = delta.encode('utf-8')
-					merged = self.merge(base, ref)
-				except Exception as e:
-					self.logger.debug(e)
-					merged = delta.encode('utf-8')
-				txn_main.put(
-					key=key.encode('utf-8'),
-					value=merged,
-					dupdata=True)
-				txn_ts.put(
-					key=key.encode('utf-8'),
-					value = str(ts).encode('utf-8'),
-					overwrite=True
-				) # Think about optimization!
+
+	def get_delta_idx(self):
+		with self.lmdb.begin() as txn:
+			deltas_db = self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+			with txn.cursor(db=deltas_db) as cursor:
+				return itertools.count(
+					start=int(cursor.key().decode('utf-8')) + 1,
+					step=1) if cursor.last() else itertools.count(
+						start=1, step=1)
+	def delete(self, eventId):
+		with self.lmdb.begin(write=True) as txn:
+			index_db = self.lmdb.open_db(
+				key=self.index_name, txn=txn, dupsort=True)
+			mtimes_db = self.lmdb.open_db(
+				key=self.mtimes_name, txn=txn)
+			deltas_db = self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+			self.logger.debug(("Removing Event {ev} from the "
+							   "database").format(ev=eventId))
+			with txn.cursor(db=index_db) as cursor:
+				cursor.set_key(eventId.encode('utf-8'))
+				self.logger.debug("Found {n} deltas".format(
+					n = cursor.count()))
+				for delta_key in cursor.iternext_dup(keys=False):
+					data = txn.get(delta_key, db=deltas_db)
+					self.logger.debug("Deleting delta {id}\n".format(
+						id=delta_key.decode('utf-8'))
+									  + prettify(data))
+					txn.delete(delta_key, db=deltas_db)
+			self.logger.debug("Deleting MTIME")
+			txn.delete(eventId.encode('utf-8'), db=mtimes_db)
+			self.logger.debug("Deleting index entry")
+			txn.delete(eventId.encode('utf-8'), db=index_db)
+	def cleanup(self, max_age):
+		with self.lmdb.begin() as txn:
+			index_db = self.lmdb.open_db(
+				key=self.index_name, txn=txn, dupsort=True)
+			mtimes_db = self.lmdb.open_db(
+				key=self.mtimes_name, txn=txn)
+			deltas_db = self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+			with txn.cursor(db=mtimes_db) as cursor:
+				if cursor.first():
+					for eventId, timestamp in cursor.iternext(
+							keys=True, values=True):
+						age = round((int(time.time() * 1000)
+									 - int(timestamp.decode('utf-8')))
+									/ 1000)
+						eventId = eventId.decode('utf-8')
+						self.logger.debug(
+							("Event {ev} was last updated {s} "
+							 "seconds ago.").format(
+								 ev = eventId, s = age))
+						if age >= max_age:
+							self.delete(eventId)
+
+	def append(self, eventId, data):
+		with self.lmdb.begin(write=True) as txn:
+			eventId = eventId.encode('utf-8')
+			data = json.dumps(data).encode('utf-8')
+			mtime = str(int(time.time() * 1000)).encode('utf-8')
+			delta_idx = "{num:0>511}".format(num=next(self.delta_idx)).encode('utf-8')
+			index_db = self.lmdb.open_db(
+				key=self.index_name, txn=txn, dupsort=True)
+			mtimes_db = self.lmdb.open_db(
+				key=self.mtimes_name, txn=txn)
+			deltas_db = self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+			txn.put(delta_idx, data, append=True, db=deltas_db)
+			txn.put(eventId, delta_idx, dupdata=True, db=index_db)
+			txn.put(eventId, mtime, overwrite=True, db=mtimes_db)
+	def get_merged(self, eventId):
+		with self.lmdb.begin() as txn:
+			eventId = eventId.encode('utf-8')
+			index_db = self.lmdb.open_db(
+				key=self.index_name, txn=txn, dupsort=True)
+			deltas_db = self.lmdb.open_db(
+				key=self.deltas_name, txn=txn)
+			with txn.cursor(db=index_db) as cursor:
+				result = {}
+				if cursor.set_key(eventId):
+					for delta in cursor.iternext_dup():
+						result = self.merger.merge(
+							result,
+							json.loads(txn.get(
+								delta, db=deltas_db).decode('utf-8')),
+							meta={'timestamp': str(int(time.time()*1000))}
+						)
+				return result
 
 class SOAPLogger(zeep.Plugin):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.logger=logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 
 	def ingress(self, envelope, http_headers, operation):
 		self.logger.debug("[TRACE] SOAP data received:\n" + etree.tostring(
@@ -141,6 +185,9 @@ class SOAPLogger(zeep.Plugin):
 		return envelope, http_headers
 
 class RequireJSON(object):
+	def __init__(self):
+		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 	def process_request(self, req, resp):
 		if not req.client_accepts_json:
 			raise falcon.HTTPNotAcceptable(
@@ -154,21 +201,37 @@ class RequireJSON(object):
 class RESTLogger(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 	def process_request(self, req, resp):
-		#self.logger.debug("")
 		if 'doc' in req.context:
 			self.logger.debug(
 				"[TRACE] JSON data received via {op} at {uri}:\n".format(
 					op=req.method, uri=req.relative_uri)
-				+ json.dumps(
-					req.context['doc'],
-					sort_keys=True,
-					indent=4,
-					separators=(',', ': ')))
+				+ prettify(req.context['doc'])
+				)
+
+class StoreDeltas(object):
+	def __init__(self, resources, delta_store_map):
+		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
+		self.resources = resources
+		self.delta_store_map = delta_store_map
+	def process_resource(self, req, resp, resource, params):
+		if 'doc' in req.context and resource in self.resources:
+			try:
+				self.delta_store_map[params['env']].append(
+					req.context['doc']['mand']['eventId'],
+					req.context['doc']
+				)
+			except KeyError:
+				self.logger.warning(
+					"No DeltaStore defined for environment: {env}".format(
+						env=params['env']))
 
 class JSONTranslator(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 
 	def process_request(self, req, resp):
 		if req.content_length in (None, 0): return
@@ -214,6 +277,7 @@ class AuthMiddleware(object):
 		self.username = auth_config.get('Authentication', 'Username')
 		self.password = auth_config.get('Authentication', 'Password')
 		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 
 	def process_request(self, req, resp):
 		credentials = req.get_header('Authorization')
@@ -253,10 +317,13 @@ class AuthMiddleware(object):
 		return username == self.username and password == self.password
 
 class RESTAPI(object):
-	def __init__(self, baseurl, endpoint, config):
+	def __init__(self, baseurl, endpoint, config, delta_store_map):
+		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 		self.app=falcon.API(middleware=[
 			RequireJSON(),
 			JSONTranslator(),
+			StoreDeltas([endpoint], delta_store_map),
 			RESTLogger(),
 			#AuthMiddleware(config)
 		])
@@ -269,6 +336,7 @@ class RESTAPI(object):
 class Trigger(object):
 	def __init__(self, schemafile, handler):
 		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 		self.schemafile=schemafile
 		self.schema = json.load(schemafile)
 		self.handler = handler
@@ -287,17 +355,21 @@ class Trigger(object):
 				"ignoring event.").format(s=self.schemafile))
 
 class Handler(object):
-	def __init__(self): self.logger = logging.getLogger('root')
+	def __init__(self):
+		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 
 class SOAPHandler(Handler):
 	def __init__(self, soap_interface_map={}):
 		super().__init__()
 		self.soap_interface_map=soap_interface_map
+		self.logger.debug("CREATING {o}".format(o=self))
 
 class StatusChange(SOAPHandler):
 	def __init__(self, soap_interface_map={}, status_map={}):
 		super().__init__(soap_interface_map)
 		self.status_map = status_map
+		self.logger.debug("CREATING {o}".format(o=self))
 
 	def log_status_change(self, env, eventId, status):
 		self.logger.info("Status of Event {ev} changed to {st}".format(
@@ -340,6 +412,7 @@ class CommentAdded(SOAPHandler):
 	def __init__(self, soap_interface_map={}, delta_store_map={}):
 		super().__init__(soap_interface_map)
 		self.delta_store_map = delta_store_map
+		self.logger.debug("CREATING {o}".format(o=self))
 
 	def log_comment(self, env, timestamp, eventId, message):
 			self.logger.info((
@@ -350,14 +423,6 @@ class CommentAdded(SOAPHandler):
 						timestamp/1000).strftime(
 							'%Y-%m-%d %H:%M:%S'),
 					cmt=message))
-
-	def store_delta(self, env, eventId, data):
-		try:
-			self.delta_store_map[env].append(eventId, json.dumps(data))
-		except KeyError:
-			self.logger.warning(
-				"No DeltaStore defined for environment: {env}".format(
-					env=env))
 
 	def add_comment_to_netcool(self, env, timestamp, eventId, message):
 			try:
@@ -371,10 +436,6 @@ class CommentAdded(SOAPHandler):
 		for comment in sorted(
 				data['opt']['comment'],
 				key=lambda comment: comment['opt']['timestamp']):
-			self.store_delta(
-				env,
-				data['mand']['eventId'],
-				data)
 			self.log_comment(
 				env,
 				int(comment['opt']['timestamp']),
@@ -386,14 +447,22 @@ class CommentAdded(SOAPHandler):
 				data['mand']['eventId'],
 				comment['opt']['content'])
 
+class Noop(object):
+	def __init__(self):
+		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
+	def __call__(self, data, env):
+		pass
+
 class StatusEjected(SOAPHandler):
 	def __init__(self, delta_store_map, soap_interfaces_map, status_map):
 		super().__init__(soap_interfaces_map)
 		self.delta_store_map = delta_store_map
+		self.logger.debug("CREATING {o}".format(o=self))
 	def get_status(self, data):
 		return data['free']['eventNormalizedStatus']
 	def get_comments(self, env, eventId):
-		return json.loads(self.delta_store_map[env].get_merged(eventId).decode('utf-8'))['opt']['comment']
+		return self.delta_store_map[env].get_merged(eventId)['opt']['comment']
 	def open_ticket_in_snow(self, env, eventId, status, comments=[]):
 		try:
 			result = self.soap_interface_map[env].snow_service.execute(
@@ -436,6 +505,7 @@ class StatusEjected(SOAPHandler):
 class Endpoint(object):
 	def __init__(self, triggers, store):
 		self.logger = logging.getLogger('root')
+		self.logger.debug("CREATING {o}".format(o=self))
 		self.triggers = triggers
 		self.store=store
 
@@ -446,13 +516,32 @@ class Endpoint(object):
 			trigger(req.context['doc'], env)
 		resp.status = falcon.HTTP_200
 
+	def on_delete(self, req, resp, env):
+		try:
+			max_age = int(req.get_param('max_age'))
+			self.store[env].cleanup(max_age)
+			resp.status = falcon.HTTP_200
+		except TypeError as e:
+			self.logger.warning(e)
+			raise falcon.HTTPBadRequest(
+				'Required parameter missing',
+				'This operation requires the max_age parameter to be set')
+		except ValueError as e:
+			self.logger.warning(e)
+			raise falcon.HTTPBadRequest(
+				'Wrong data',
+				'Parameter max_age must be a number (of seconds)')
+
 	def on_get(self, req, resp, env):
 		try:
 			event_id=req.get_param('id')
 			if event_id:
-				resp.context['result'] = json.loads(self.store[env].get_merged(event_id).decode('utf-8'))
+				resp.context['result'] = self.store[env].get_merged(
+					event_id)
+				resp.status = falcon.HTTP_200
 			else:
-				resp.context['result'] = json.loads(self.store[env].get_all().decode('utf-8'))
+				resp.context['result'] = self.store[env].get_all()
+				resp.status = falcon.HTTP_200
 		except Exception as e:
 			self.logger.debug(e)
 			raise
@@ -514,7 +603,8 @@ class ConnectitDaemon(Daemon):
 			session = requests.Session()
 			session.auth = requests.auth.HTTPBasicAuth(
 				interfaces_config[env]['Username'],
-				interfaces_config[env]['Password'])
+				interfaces_config[env]['Password']
+			)
 			logger.debug(
 				"Loading interface description from {file}".format(
 					file=wsdl_file_path))
@@ -528,21 +618,20 @@ class ConnectitDaemon(Daemon):
 					env=env,
 					ep=interfaces_config[env]['Endpoint']))
 			soap_client.netcool_service = soap_client.create_service(
-				'{http://response.micromuse.com/types}ImpactWebServiceListenerDLIfcBinding', interfaces_config[env]['Endpoint'])
+				'{http://response.micromuse.com/types}ImpactWebServiceListenerDLIfcBinding',
+				interfaces_config[env]['Endpoint'])
 			soap_interfaces_map[env]=soap_client
 			try:
-				os.makedirs(
-					os.path.join(db_path, env),
-					mode=0o700, exist_ok=True)
+				os.makedirs(db_path, mode=0o700, exist_ok=True)
 			except OSError as e:
 				self.logger.critical("Can't create data directory: " + e)
 				sys.exit(5)
 
 			delta_store_map[env]=DeltaStore(
 				db_path = os.path.join(db_path, env),
-				max_size = 1024*1024*100,
+				max_size = 1024 * 1024 * 2048,
 				schemafile = open(os.path.join(
-					share_dir, "schemas/event-comment-added.json")))
+					share_dir, "schemas/event.json")))
 
 		session = requests.Session()
 		session.auth = requests.auth.HTTPBasicAuth(
@@ -566,7 +655,6 @@ class ConnectitDaemon(Daemon):
 			"Escalated":3004,
 			"Closed":3005
 		}
-		logger.debug("[LMDB] env = lmdb.open(\"/tmp/delta_store\", map_size=1048576000, max_dbs=10, writemap=True, max_readers=16, max_spare_txns=10)")
 
 		triggers= [
 			Trigger(
@@ -590,7 +678,8 @@ class ConnectitDaemon(Daemon):
 			RESTAPI(
 				rest_url.path,
 				Endpoint(triggers, delta_store_map),
-				config=adapter_config
+				config=adapter_config,
+				delta_store_map=delta_store_map
 			).app,
 			log=None,
 			error_log=logger)
