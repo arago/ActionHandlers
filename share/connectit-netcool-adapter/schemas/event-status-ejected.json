@@ -33,5 +33,5 @@
 		"sdfType": {"type":"string", "enum":["EVENT"]},
 		"sdfVersion": {"type":"string", "enum":["1.0"]}
 	},
-	"required": ["mand", "free", "sdfType", "sdfVersion"]
+	"required": ["free", "sdfType", "sdfVersion"]
 }

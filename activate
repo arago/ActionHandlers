@@ -1,0 +1,10 @@
+[[ -L /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago ]] || sudo ln -sf "$(pwd)/arago" /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago
+
+[[ -L /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter ]] || sudo ln -sf "$(pwd)/share/connectit-netcool-adapter" /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter
+
+[[ -L /opt/autopilot/connectit/conf ]] || sudo mkdir -p /opt/autopilot/connectit && sudo ln -sf "$(pwd)/config" /opt/autopilot/connectit/conf
+
+scl enable hiro_integration "bash --rcfile <(cat <<END-of-rcfile
+. ~/.bashrc
+export PS1=\"\\[\\e[31m\\]\\u\\[\\e[m\\]\\[\\e[31m\\]@\\[\\e[m\\]\\[\\e[31m\\]\\h[\$X_SCLS]\\[\\e[m\\]:\\W \\$ \"
+END-of-rcfile)"

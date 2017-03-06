@@ -17,10 +17,12 @@ import signal
 from configparser import ConfigParser
 import logging, logging.config
 from connectit.daemon import Daemon
-import sys, os, falcon, json
+import sys, os, falcon
+import ujson as json
 from docopt import docopt
 from urllib.parse import urlparse, urlunparse
 import jsonschema, zeep, requests
+import fastjsonschema
 import datetime, time
 from lxml import etree
 from base64 import b64decode
@@ -43,13 +45,7 @@ def prettify(data):
 	return json.dumps(
 		data,
 		sort_keys=True,
-		indent=4,
-		separators=(',', ': '))
-
-def decode_bjson(bjson):
-	return json.loads(bjson.decode('utf-8'))
-def encode_bjson(data):
-	return json.dumps(data).encode('utf-8')
+		indent=4)
 
 class DeltaStore(object):
 	def __init__(self, db_path, max_size, schemafile):
@@ -82,7 +78,7 @@ class DeltaStore(object):
 				key=self.deltas_name, txn=txn)
 			with txn.cursor(db=deltas_db) as cursor:
 				return itertools.count(
-					start=int(cursor.key().decode('utf-8')) + 1,
+					start=int.from_bytes(cursor.key(), byteorder=sys.byteorder, signed=False)  + 1,
 					step=1) if cursor.last() else itertools.count(
 						start=1, step=1)
 	def delete(self, eventId):
@@ -121,23 +117,21 @@ class DeltaStore(object):
 				if cursor.first():
 					for eventId, timestamp in cursor.iternext(
 							keys=True, values=True):
-						age = round((int(time.time() * 1000)
-									 - int(timestamp.decode('utf-8')))
-									/ 1000)
+						age = int(time.time() * 1000) - int.from_bytes(timestamp, byteorder=sys.byteorder, signed=False)
 						eventId = eventId.decode('utf-8')
 						self.logger.debug(
 							("Event {ev} was last updated {s} "
-							 "seconds ago.").format(
+							 "milliseconds ago.").format(
 								 ev = eventId, s = age))
-						if age >= max_age:
+						if age >= max_age * 1000:
 							self.delete(eventId)
 
 	def append(self, eventId, data):
 		with self.lmdb.begin(write=True) as txn:
 			eventId = eventId.encode('utf-8')
-			data = json.dumps(data).encode('utf-8')
-			mtime = str(int(time.time() * 1000)).encode('utf-8')
-			delta_idx = "{num:0>511}".format(num=next(self.delta_idx)).encode('utf-8')
+			data = compress(json.dumps(data))
+			mtime = int(time.time() * 1000).to_bytes(length=6, byteorder=sys.byteorder, signed=False)
+			delta_idx = next(self.delta_idx).to_bytes(length=511, byteorder=sys.byteorder, signed=False)
 			index_db = self.lmdb.open_db(
 				key=self.index_name, txn=txn, dupsort=True)
 			mtimes_db = self.lmdb.open_db(
@@ -160,8 +154,8 @@ class DeltaStore(object):
 					for delta in cursor.iternext_dup():
 						result = self.merger.merge(
 							result,
-							json.loads(txn.get(
-								delta, db=deltas_db).decode('utf-8')),
+							json.loads(uncompress(txn.get(
+								delta, db=deltas_db))),
 							meta={'timestamp': str(int(time.time()*1000))}
 						)
 				return result
@@ -350,6 +344,24 @@ class Trigger(object):
 					s=self.schemafile, handler=self.handler))
 			self.handler(data, env)
 		except jsonschema.ValidationError:
+			self.logger.debug((
+				"Schema {s} could not be validated, "
+				"ignoring event.").format(s=self.schemafile))
+
+class FastTrigger(Trigger):
+	def __init__(self, schemafile, handler):
+		super().__init__(schemafile, handler)
+		self.validator = fastjsonschema.compile(self.schema)
+
+	def __call__(self, data, env):
+		try:
+			self.validator(data)
+			self.logger.debug((
+				"Schema {s} validated, "
+				"calling Handler: {handler}").format(
+					s=self.schemafile, handler=self.handler))
+			self.handler(data, env)
+		except fastjsonschema.JsonSchemaException:
 			self.logger.debug((
 				"Schema {s} could not be validated, "
 				"ignoring event.").format(s=self.schemafile))
@@ -666,6 +678,24 @@ class ConnectitDaemon(Daemon):
 					share_dir, "schemas/event-comment-added.json")),
 				CommentAdded(soap_interfaces_map, delta_store_map)),
 			Trigger(
+				open(os.path.join(
+					share_dir, "schemas/event-status-ejected.json")),
+				StatusEjected(
+					delta_store_map,
+					snow_soap_int_map,
+					status_map))
+		]
+
+		triggers= [
+			FastTrigger(
+				open(os.path.join(
+					share_dir, "schemas/event-status-change.json")),
+				StatusChange(soap_interfaces_map, status_map)),
+			FastTrigger(
+				open(os.path.join(
+					share_dir, "schemas/event-comment-added.json")),
+				CommentAdded(soap_interfaces_map, delta_store_map)),
+			FastTrigger(
 				open(os.path.join(
 					share_dir, "schemas/event-status-ejected.json")),
 				StatusEjected(
