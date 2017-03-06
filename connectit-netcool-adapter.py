@@ -570,22 +570,26 @@ class ConnectitDaemon(Daemon):
 			os.getenv('PYTHON_DATADIR'), 'connectit-netcool-adapter')
 
 		# Setup logging in normal operation
-		try:
-			logging.config.fileConfig(os.path.join(
-				config_path, 'connectit-netcool-adapter-logging.conf'))
-		except Exception as e:
-			print(e, file=sys.stderr)
-			sys.exit(5)
+
 		logger = logging.getLogger('root')
+
+		formatter = logging.Formatter(
+			"%(asctime)s [%(levelname)s] %(message)s",
+			"%Y-%m-%d %H:%M:%S")
+
+		logfile = logging.FileHandler(
+			'/var/log/autopilot/connectit/netcool-adapter.log')
+		logfile.setLevel(logging.DEBUG)
+
+		logfile.setFormatter(formatter)
+
+		logger.addHandler(logfile)
 
 		# Setup debug logging
 		if self.debug:
 			logger.setLevel(logging.DEBUG)
 			ch = logging.StreamHandler()
 			ch.setLevel(logging.DEBUG)
-			formatter = logging.Formatter(
-				"%(asctime)s [%(levelname)s] %(message)s",
-				"%Y-%m-%d %H:%M:%S")
 			ch.setFormatter(formatter)
 			logger.addHandler(ch)
 			logger.info("Logging to console and logfile")
