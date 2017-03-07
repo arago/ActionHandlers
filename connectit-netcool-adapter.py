@@ -80,9 +80,13 @@ class DeltaStore(object):
 				key=self.deltas_name, txn=txn)
 			with txn.cursor(db=deltas_db) as cursor:
 				return itertools.count(
-					start=int.from_bytes(cursor.key(), byteorder=sys.byteorder, signed=False)  + 1,
-					step=1) if cursor.last() else itertools.count(
-						start=1, step=1)
+					start=int.from_bytes(
+						cursor.key(),
+						byteorder=sys.byteorder,
+						signed=False)  + 1,
+						step=1
+				) if cursor.last() else itertools.count(
+					start=1, step=1)
 	def delete(self, eventId):
 		with self.lmdb.begin(write=True) as txn:
 			index_db = self.lmdb.open_db(
@@ -109,17 +113,16 @@ class DeltaStore(object):
 			txn.delete(eventId.encode('utf-8'), db=index_db)
 	def cleanup(self, max_age):
 		with self.lmdb.begin() as txn:
-			index_db = self.lmdb.open_db(
-				key=self.index_name, txn=txn, dupsort=True)
 			mtimes_db = self.lmdb.open_db(
 				key=self.mtimes_name, txn=txn)
-			deltas_db = self.lmdb.open_db(
-				key=self.deltas_name, txn=txn)
 			with txn.cursor(db=mtimes_db) as cursor:
 				if cursor.first():
 					for eventId, timestamp in cursor.iternext(
 							keys=True, values=True):
-						age = int(time.time() * 1000) - int.from_bytes(timestamp, byteorder=sys.byteorder, signed=False)
+						age = int(time.time() * 1000) - int.from_bytes(
+							timestamp,
+							byteorder=sys.byteorder,
+							signed=False)
 						eventId = eventId.decode('utf-8')
 						self.logger.debug(
 							("Event {ev} was last updated {s} "
@@ -132,8 +135,14 @@ class DeltaStore(object):
 		with self.lmdb.begin(write=True) as txn:
 			eventId = eventId.encode('utf-8')
 			data = compress(json.dumps(data))
-			mtime = int(time.time() * 1000).to_bytes(length=6, byteorder=sys.byteorder, signed=False)
-			delta_idx = next(self.delta_idx).to_bytes(length=511, byteorder=sys.byteorder, signed=False)
+			mtime = int(time.time() * 1000).to_bytes(
+				length=6,
+				byteorder=sys.byteorder,
+				signed=False)
+			delta_idx = next(self.delta_idx).to_bytes(
+				length=511,
+				byteorder=sys.byteorder,
+				signed=False)
 			index_db = self.lmdb.open_db(
 				key=self.index_name, txn=txn, dupsort=True)
 			mtimes_db = self.lmdb.open_db(
@@ -464,7 +473,8 @@ class StatusEjected(SOAPHandler):
 	def get_status(self, data):
 		return data['free']['eventNormalizedStatus']
 	def get_comments(self, env, eventId):
-		return self.delta_store_map[env].get_merged(eventId)['opt']['comment']
+		return self.delta_store_map[env].get_merged(
+			eventId)['opt']['comment']
 	def open_ticket_in_snow(self, env, eventId, status, comments=[]):
 		try:
 			result = self.soap_interface_map[env].snow_service.execute(
@@ -475,7 +485,10 @@ class StatusEjected(SOAPHandler):
 				details="",
 				netcool_id=eventId,
 				arago_id=eventId,
-				notes="\n".join(["[{ts}] {body}".format(ts=comment['timestamp'], body=comment['content']) for comment in comments]),
+				notes="\n".join(["[{ts}] {body}".format(
+					ts=comment['timestamp'],
+					body=comment['content']
+				) for comment in comments]),
 				tranasction_time=datetime.datetime.now().strftime(
 					'%Y-%m-%d %H:%M:%S')
 				)
@@ -600,7 +613,8 @@ class ConnectitDaemon(Daemon):
 			"%(asctime)s [%(levelname)s] %(message)s",
 			"%Y-%m-%d %H:%M:%S")
 
-		logfile_handler = logging.FileHandler('/var/log/autopilot/connectit/netcool-adapter.log')
+		logfile_handler = logging.FileHandler(
+			'/var/log/autopilot/connectit/netcool-adapter.log')
 		logfile_handler.setFormatter(logfile_formatter)
 
 		mem_handler = TimeoutMemoryHandler(
@@ -669,7 +683,8 @@ class ConnectitDaemon(Daemon):
 					env=env,
 					ep=interfaces_config[env]['Endpoint']))
 			soap_client.netcool_service = soap_client.create_service(
-				'{http://response.micromuse.com/types}ImpactWebServiceListenerDLIfcBinding',
+				'{http://response.micromuse.com/types}'
+				'ImpactWebServiceListenerDLIfcBinding',
 				interfaces_config[env]['Endpoint'])
 			soap_interfaces_map[env]=soap_client
 			try:
