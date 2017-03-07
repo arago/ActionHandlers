@@ -1,0 +1,73 @@
+{
+	"type": "object",
+	"properties": {
+		"mand": {
+			"type":"object",
+			"properties": {
+				"eventId": {"type":"string"},
+				"eventName": {"type":"string"},
+				"instance": {"type":"string"},
+				"sourceId": {"type":"string"},
+				"description": {"type":"string"}
+			},
+			"required": [
+				"eventId",
+				"eventName",
+				"instance",
+				"sourceId",
+				"description"]
+		},
+		"free": {
+			"type":"object",
+			"properties": {
+				"eventNormalizedStatus": {
+					"type": "string",
+					"mergeStrategy": "version",
+					"enum":[
+						"New",
+						"Assigned",
+						"Pending",
+						"Resolved",
+						"Escalated",
+						"Closed"
+					]
+				}
+			},
+			"required": ["eventNormalizedStatus"]
+		},
+		"opt": {
+			"type":"object",
+			"properties": {
+				"comment": {
+					"type": "array",
+					"mergeStrategy": "append",
+					"minItems":1,
+					"items": {
+						"type":"object",
+						"properties": {
+							"sdfType":{
+								"type":"string",
+								"enum":["COMMENT"]},
+							"sdfVersion": {
+								"type":"string",
+								"enum":["1.0"]},
+							"mand": {
+								"type":"object",
+								"properties": {"id": {"type":"string"}},
+								"required":["id"]
+							}
+						},
+						"required":[
+							"sdfType",
+							"sdfVersion",
+							"mand"]
+					}
+				}
+			},
+			"required": ["comment"]
+		},
+		"sdfType": {"type":"string", "enum":["EVENT"]},
+		"sdfVersion": {"type":"string", "enum":["1.0"]}
+	},
+	"required": ["mand", "free", "sdfType", "sdfVersion"]
+}

@@ -1,0 +1,37 @@
+{
+	"type": "object",
+	"properties": {
+		"mand": {
+			"type":"object",
+			"properties": {
+				"eventId": {"type":"string"},
+				"eventName": {"type":"string"},
+				"instance": {"type":"string"},
+				"sourceId": {"type":"string"},
+				"description": {"type":"string"}
+			},
+			"required": [
+				"eventId",
+				"eventName",
+				"instance",
+				"sourceId",
+				"description"
+			]
+		},
+		"free": {
+			"type":"object",
+			"properties": {
+				"eventNormalizedStatus": {
+					"type": "string",
+					"enum":[
+						"Escalated"
+					]
+				}
+			},
+			"required": ["eventNormalizedStatus"]
+		},
+		"sdfType": {"type":"string", "enum":["EVENT"]},
+		"sdfVersion": {"type":"string", "enum":["1.0"]}
+	},
+	"required": ["free", "sdfType", "sdfVersion"]
+}
