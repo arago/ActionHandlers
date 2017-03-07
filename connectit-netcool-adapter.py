@@ -11,8 +11,8 @@ Options:
 """
 import gevent
 from gevent import pywsgi
-from gevent import monkey; monkey.patch_all()
-import gevent.hub
+from gevent import monkey; monkey.patch_all(sys=True)
+import gevent.hub, gevent.queue
 import signal
 from configparser import ConfigParser
 import logging, logging.config
@@ -50,13 +50,15 @@ def prettify(data):
 class DeltaStore(object):
 	def __init__(self, db_path, max_size, schemafile):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 		self.lmdb = lmdb.open(
 			db_path,
 			map_size=max_size,
 			subdir=False,
 			max_dbs=5,
 			writemap=True,
+			# metasync=False,
+			# sync=False,
+			# map_async=True,
 			max_readers=16,
 			max_spare_txns=10)
 		self.index_name = 'index'.encode('utf-8')
@@ -164,16 +166,15 @@ class SOAPLogger(zeep.Plugin):
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.logger=logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 
 	def ingress(self, envelope, http_headers, operation):
-		self.logger.debug("[TRACE] SOAP data received:\n" + etree.tostring(
+		self.logger.trace("SOAP data received:\n" + etree.tostring(
 			envelope, encoding='unicode', pretty_print=True))
 		return envelope, http_headers
 
 	def egress(self, envelope, http_headers, operation, binding_options):
-		self.logger.debug(
-			"[TRACE] SOAP data sent to {addr}:\n".format(
+		self.logger.trace(
+			"SOAP data sent to {addr}:\n".format(
 				addr=binding_options['address']) + etree.tostring(
 					envelope, encoding='unicode', pretty_print=True))
 		return envelope, http_headers
@@ -181,7 +182,6 @@ class SOAPLogger(zeep.Plugin):
 class RequireJSON(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 	def process_request(self, req, resp):
 		if not req.client_accepts_json:
 			raise falcon.HTTPNotAcceptable(
@@ -195,11 +195,10 @@ class RequireJSON(object):
 class RESTLogger(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 	def process_request(self, req, resp):
 		if 'doc' in req.context:
-			self.logger.debug(
-				"[TRACE] JSON data received via {op} at {uri}:\n".format(
+			self.logger.trace(
+				"JSON data received via {op} at {uri}:\n".format(
 					op=req.method, uri=req.relative_uri)
 				+ prettify(req.context['doc'])
 				)
@@ -207,7 +206,6 @@ class RESTLogger(object):
 class StoreDeltas(object):
 	def __init__(self, resources, delta_store_map):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 		self.resources = resources
 		self.delta_store_map = delta_store_map
 	def process_resource(self, req, resp, resource, params):
@@ -225,7 +223,6 @@ class StoreDeltas(object):
 class JSONTranslator(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 
 	def process_request(self, req, resp):
 		if req.content_length in (None, 0): return
@@ -238,8 +235,8 @@ class JSONTranslator(object):
 		try:
 			req.context['doc'] = json.loads(body.decode('utf-8'))
 		except ValueError:
-			self.logger.debug(
-				"[TRACE] Malformed data received "
+			self.logger.trace(
+				"Malformed data received "
 				"via {op} ar {uri}:\n".format(
 					op=req.method,uri=req.relative_uri)
 				+ body.decode('utf-8')
@@ -249,8 +246,8 @@ class JSONTranslator(object):
 				'Malformed JSON',
 				'Could not decode the request body.')
 		except UnicodeDecodeError:
-			self.logger.debug(
-				"[TRACE] Malformed data received "
+			self.logger.trace(
+				"Malformed data received "
 				"via {op} ar {uri}:\n".format(
 					op=req.method,uri=req.relative_uri)
 				+ str(body)
@@ -271,7 +268,6 @@ class AuthMiddleware(object):
 		self.username = auth_config.get('Authentication', 'Username')
 		self.password = auth_config.get('Authentication', 'Password')
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 
 	def process_request(self, req, resp):
 		credentials = req.get_header('Authorization')
@@ -313,14 +309,15 @@ class AuthMiddleware(object):
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint, config, delta_store_map):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
-		self.app=falcon.API(middleware=[
+		self.middleware = [
 			RequireJSON(),
 			JSONTranslator(),
 			StoreDeltas([endpoint], delta_store_map),
-			RESTLogger(),
 			#AuthMiddleware(config)
-		])
+		]
+		if self.logger.getEffectiveLevel() <= self.logger.TRACE:
+			self.middleware.append(RESTLogger())
+		self.app=falcon.API(middleware=self.middleware)
 		self.baseurl=baseurl
 		self.basepath=urlparse(baseurl).path
 		self.endpoint = endpoint
@@ -330,7 +327,6 @@ class RESTAPI(object):
 class Trigger(object):
 	def __init__(self, schemafile, handler):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 		self.schemafile=schemafile
 		self.schema = json.load(schemafile)
 		self.handler = handler
@@ -369,22 +365,19 @@ class FastTrigger(Trigger):
 class Handler(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 
 class SOAPHandler(Handler):
 	def __init__(self, soap_interface_map={}):
 		super().__init__()
 		self.soap_interface_map=soap_interface_map
-		self.logger.debug("CREATING {o}".format(o=self))
 
 class StatusChange(SOAPHandler):
 	def __init__(self, soap_interface_map={}, status_map={}):
 		super().__init__(soap_interface_map)
 		self.status_map = status_map
-		self.logger.debug("CREATING {o}".format(o=self))
 
 	def log_status_change(self, env, eventId, status):
-		self.logger.info("Status of Event {ev} changed to {st}".format(
+		self.logger.verbose("Status of Event {ev} changed to {st}".format(
 			ev=eventId,
 			st=status))
 
@@ -424,10 +417,9 @@ class CommentAdded(SOAPHandler):
 	def __init__(self, soap_interface_map={}, delta_store_map={}):
 		super().__init__(soap_interface_map)
 		self.delta_store_map = delta_store_map
-		self.logger.debug("CREATING {o}".format(o=self))
 
 	def log_comment(self, env, timestamp, eventId, message):
-			self.logger.info((
+			self.logger.verbose((
 				"A comment was added to event {ev}"
 				" at {time}: {cmt}").format(
 					ev=eventId,
@@ -462,7 +454,6 @@ class CommentAdded(SOAPHandler):
 class Noop(object):
 	def __init__(self):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 	def __call__(self, data, env):
 		pass
 
@@ -470,7 +461,6 @@ class StatusEjected(SOAPHandler):
 	def __init__(self, delta_store_map, soap_interfaces_map, status_map):
 		super().__init__(soap_interfaces_map)
 		self.delta_store_map = delta_store_map
-		self.logger.debug("CREATING {o}".format(o=self))
 	def get_status(self, data):
 		return data['free']['eventNormalizedStatus']
 	def get_comments(self, env, eventId):
@@ -517,7 +507,6 @@ class StatusEjected(SOAPHandler):
 class Endpoint(object):
 	def __init__(self, triggers, store):
 		self.logger = logging.getLogger('root')
-		self.logger.debug("CREATING {o}".format(o=self))
 		self.triggers = triggers
 		self.store=store
 
@@ -558,6 +547,38 @@ class Endpoint(object):
 			self.logger.debug(e)
 			raise
 
+class Logger(logging.getLoggerClass()):
+	CRITICAL=50
+	ERROR=40
+	WARNING=30
+	INFO=20
+	VERBOSE=15
+	DEBUG=10
+	TRACE= 5
+	NOTSET=0
+	def __init__(self, name, level=logging.NOTSET):
+		super().__init__(name, level)
+		logging.addLevelName(self.VERBOSE, "VERBOSE")
+		logging.addLevelName(self.TRACE, "TRACE")
+	def verbose(self, msg, *args, **kwargs):
+		if self.isEnabledFor(self.VERBOSE):
+			self._log(self.VERBOSE, msg, args, **kwargs)
+	def trace(self, msg, *args, **kwargs):
+		if self.isEnabledFor(self.TRACE):
+			self._log(self.TRACE, msg, args, **kwargs)
+
+class TimeoutMemoryHandler(logging.handlers.MemoryHandler):
+	def __init__(self, capacity, flushLevel=logging.ERROR,
+				 target=None, timeout=10):
+		super().__init__(capacity, flushLevel, target)
+		self.timeout=timeout
+		gevent.spawn(self.flushOnTimeout)
+
+	def flushOnTimeout(self):
+		while True:
+			gevent.sleep(self.timeout)
+			self.flush()
+
 class ConnectitDaemon(Daemon):
 	def run(self):
 		config_path = '/opt/autopilot/connectit/conf/'
@@ -571,28 +592,39 @@ class ConnectitDaemon(Daemon):
 
 		# Setup logging in normal operation
 
+		logging.setLoggerClass(Logger)
 		logger = logging.getLogger('root')
+		logger.setLevel(logger.INFO)
 
-		formatter = logging.Formatter(
+		logfile_formatter = logging.Formatter(
 			"%(asctime)s [%(levelname)s] %(message)s",
 			"%Y-%m-%d %H:%M:%S")
 
-		logfile = logging.FileHandler(
-			'/var/log/autopilot/connectit/netcool-adapter.log')
-		logfile.setLevel(logging.DEBUG)
+		logfile_handler = logging.FileHandler('/var/log/autopilot/connectit/netcool-adapter.log')
+		logfile_handler.setFormatter(logfile_formatter)
 
-		logfile.setFormatter(formatter)
-
-		logger.addHandler(logfile)
+		mem_handler = TimeoutMemoryHandler(
+			10000, target=logfile_handler,
+			flushLevel=logger.CRITICAL, timeout=5)
+		logfile_handler.setLevel(logging.INFO)
+		mem_handler.setLevel(logging.INFO)
+		logger.addHandler(mem_handler)
 
 		# Setup debug logging
 		if self.debug:
-			logger.setLevel(logging.DEBUG)
-			ch = logging.StreamHandler()
-			ch.setLevel(logging.DEBUG)
-			ch.setFormatter(formatter)
-			logger.addHandler(ch)
+			stream_handler = logging.StreamHandler()
+			stream_handler.setLevel(logger.TRACE)
+			debug_formatter = logging.Formatter(
+				"[%(levelname)s] %(message)s")
+			stream_handler.setFormatter(debug_formatter)
+			logger.setLevel(logger.TRACE)
 			logger.info("Logging to console and logfile")
+
+			debug_mem_handler = TimeoutMemoryHandler(
+				10000, target=stream_handler,
+				flushLevel=logger.CRITICAL, timeout=1)
+			debug_mem_handler.setLevel(logger.TRACE)
+			logger.addHandler(debug_mem_handler)
 
 		logger.info("HIRO Connect Netcool Adapter starting up ...")
 		logger.debug("Reading main config file {file}".format(
@@ -624,6 +656,9 @@ class ConnectitDaemon(Daemon):
 			logger.debug(
 				"Loading interface description from {file}".format(
 					file=wsdl_file_path))
+			plugins=[]
+			if logger.getEffectiveLevel() <= logger.TRACE:
+				plugins.append(SOAPLogger())
 			soap_client = zeep.Client(
 				'file://' + wsdl_file_path,
 				transport=zeep.Transport(session=session),
@@ -721,6 +756,7 @@ class ConnectitDaemon(Daemon):
 			logger.info("Shutting down ...")
 			server.stop()
 			logger.debug("Shutdown complete!")
+			mem_handler.flush()
 			sys.exit(0)
 		gevent.hub.signal(signal.SIGINT, exit_gracefully)
 		gevent.hub.signal(signal.SIGTERM, exit_gracefully)
