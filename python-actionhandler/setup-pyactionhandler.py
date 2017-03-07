@@ -38,15 +38,15 @@ kind of command line or API, e.g. SQL.
 		(
 			'/opt/autopilot/conf/external_actionhandlers/',
 			[
-				'config/counting-rhyme-actionhandler.conf',
-				'config/counting-rhyme-actionhandler-log.conf'
+				'config/external_actionhandlers/counting-rhyme-actionhandler.conf',
+				'config/external_actionhandlers/counting-rhyme-actionhandler-log.conf'
 			]
 		),
 		(
 			'/opt/autopilot/conf/external_actionhandlers/capabilities/',
 			[
-				'config/capabilities/counting-rhyme-actionhandler.xml',
-				'config/capabilities/counting-rhyme-actionhandler.yaml'
+				'config/external_actionhandlers/capabilities/counting-rhyme-actionhandler.xml',
+				'config/external_actionhandlers/capabilities/counting-rhyme-actionhandler.yaml'
 			]
 		),
 		(

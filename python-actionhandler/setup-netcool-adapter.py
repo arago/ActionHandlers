@@ -32,15 +32,14 @@ distutils.core.setup(
 		(
 			'/opt/autopilot/connectit/conf/',
 			[
-				'config/connectit-netcool-adapter.conf',
-				'config/connectit-netcool-adapter-logging.conf',
-				'config/connectit-netcool-adapter-netcool.conf'
+				'config/netcool-adapter/connectit-netcool-adapter.conf',
+				'config/netcool-adapter/connectit-netcool-adapter-netcool.conf'
 			]
 		),
 		(
 			'/etc/init.d/',
 			[
-				'etc/connectit-netcool-adapter'
+				'etc/init.d/connectit-netcool-adapter'
 			]
 		)
 	]

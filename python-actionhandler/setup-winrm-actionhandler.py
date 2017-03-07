@@ -30,15 +30,15 @@ Windows hosts via the WinRM protocol.
 		(
 			'/opt/autopilot/conf/external_actionhandlers/',
 			[
-				'config/winrm-actionhandler.conf',
-				'config/winrm-actionhandler-log.conf'
+				'config/external_actionhandlers/winrm-actionhandler.conf',
+				'config/external_actionhandlers/winrm-actionhandler-log.conf'
 			]
 		),
 		(
 			'/opt/autopilot/conf/external_actionhandlers/capabilities/',
 			[
-				'config/capabilities/winrm-actionhandler.xml',
-				'config/capabilities/winrm-actionhandler.yaml'
+				'config/external_actionhandlers/capabilities/winrm-actionhandler.xml',
+				'config/external_actionhandlers/capabilities/winrm-actionhandler.yaml'
 			]
 		),
 		(
