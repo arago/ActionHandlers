@@ -1,4 +1,9 @@
-from configparser import NoSectionError, NoOptionError
+import ujson as json
+from itertools import islice, chain
+
+def chunks(iterable, size=10):
+	iterator = iter(iterable)
+	for first in iterator: yield chain([first], islice(iterator, size - 1))
 
 def decode_rpc_call(message):
 	def parse_protobuf(message):
@@ -41,3 +46,17 @@ def fallback(function):
 			self.add_section(args[0])
 			return function(self, *args, **kwargs)
 	return wrapper
+
+def prettify(data):
+	try:
+		data = data.decode('utf-8')
+	except:
+		pass
+	try:
+		data=json.loads(data)
+	except:
+		pass
+	return json.dumps(
+		data,
+		sort_keys=True,
+		indent=4)
