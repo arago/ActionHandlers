@@ -1,13 +1,12 @@
-import logging, falcon, os, sys
+import logging, falcon, sys
 from urllib.parse import urlparse
 from configparser import NoSectionError, NoOptionError
-from arago.pyconnectit.protocols.rest.plugins.require_json import RequireJSON
-from arago.pyconnectit.protocols.rest.plugins.rest_logger import RESTLogger
-from arago.pyconnectit.protocols.rest.plugins.json_translator import JSONTranslator
-from arago.pyconnectit.protocols.rest.plugins.auth.basic import BasicAuthentication
-from arago.pyconnectit.common.delta_store import DeltaStore
-
-from arago.pyconnectit.common.middleware.store_deltas import StoreDeltas
+from arago.pyconnectit.common.rest.plugins.require_json import RequireJSON
+from arago.pyconnectit.common.rest.plugins.rest_logger import RESTLogger
+from arago.pyconnectit.common.rest.plugins.restrict_environment import RestrictEnvironment
+from arago.pyconnectit.common.rest.plugins.json_translator import JSONTranslator
+from arago.pyconnectit.common.rest.plugins.auth.basic import BasicAuthentication
+from arago.pyconnectit.common.rest.plugins.store_deltas import StoreDeltas
 
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint, middleware=[]):
@@ -17,24 +16,11 @@ class RESTAPI(object):
 			baseurl.path + '/events/{env}', endpoint)
 
 	@classmethod
-	def from_config(cls, adapter_config, environments_config, triggers=[]):
+	def from_config(cls, adapter_config, environments_config, delta_store_map={}, triggers=[]):
 		logger = logging.getLogger('root')
-		try:
-			os.makedirs(adapter_config['DeltaStore']['data_dir'], mode=0o700, exist_ok=True)
-		except OSError as e:
-			logger.critical("Can't create data directory: " + e)
-			sys.exit(5)
-		delta_store_map= {
-			env:DeltaStore(
-				db_path = os.path.join(adapter_config['DeltaStore']['data_dir'], env),
-				max_size = 1024 * 1024 * adapter_config.getint('DeltaStore', 'max_size_in_mb', fallback=1024),
-				schemafile = open(environments_config[env]['event_schema'])
-			)
-			for env
-			in environments_config.sections()
-		}
 		endpoint=Endpoint(triggers, delta_store_map)
 		middleware = [
+			RestrictEnvironment(environments_config.sections()),
 			RequireJSON(),
 			JSONTranslator(),
 			StoreDeltas([endpoint], delta_store_map)

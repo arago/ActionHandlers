@@ -5,26 +5,21 @@ if os.environ.get('USER','') == 'vagrant':
 
 import distutils.core
 
-name = 'arago-pyactionhandler-winrm'
-
 distutils.core.setup(
-	name = name,
-	version = "2.0.1",
+	name = "arago-pyconnectit-common-base",
+	version = "2.1",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
-	description = ("WinRM module for pyactionhandler"),
+	description = ("Common functions and classes for pyconnectit"),
 	license = "MIT",
 	url = "http://www.arago.de",
-	long_description="""\
-Support for the Windows Remote Management protocol.
-""",
+	long_description="Common functions and classes for pyconnectit",
 	classifiers=[
 		"Development Status :: 5 - Production/Stable",
 		"Topic :: Utilities",
 		"License :: OSI Approved :: MIT License",
 	],
-	packages=['arago.pyactionhandler.plugins.winrm',
-			  'arago.pyactionhandler.plugins.winrm.auth.kerberos'
-	],
-	install_requires=['arago-pyactionhandler']
+	packages=['arago.pyconnectit.common.delta_store',
+			  'arago.pyconnectit.common.lmdb_queue'
+	]
 )

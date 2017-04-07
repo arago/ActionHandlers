@@ -5,26 +5,19 @@ if os.environ.get('USER','') == 'vagrant':
 
 import distutils.core
 
-name = 'arago-pyactionhandler-winrm'
-
 distutils.core.setup(
-	name = name,
-	version = "2.0.1",
+	name = "arago-pyconnectit-common-middleware-storedeltas",
+	version = "2.1",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
-	description = ("WinRM module for pyactionhandler"),
+	description = ("Middleware to store SDF deltas"),
 	license = "MIT",
 	url = "http://www.arago.de",
-	long_description="""\
-Support for the Windows Remote Management protocol.
-""",
+	long_description="Middleware to store SDF deltas",
 	classifiers=[
 		"Development Status :: 5 - Production/Stable",
 		"Topic :: Utilities",
 		"License :: OSI Approved :: MIT License",
 	],
-	packages=['arago.pyactionhandler.plugins.winrm',
-			  'arago.pyactionhandler.plugins.winrm.auth.kerberos'
-	],
-	install_requires=['arago-pyactionhandler']
+	packages=['arago.pyconnectit.common.middleware.store_deltas']
 )

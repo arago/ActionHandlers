@@ -8,7 +8,7 @@ class SOAPHandler(BaseHandler):
 		self.soap_interfaces_map=soap_interfaces_map
 
 	@classmethod
-	def from_config(cls, adapter_config, environments_config, prefix=''):
+	def from_config(cls, adapter_config, environments_config, prefix='', *args, **kwargs):
 		def setup_soapclient(env):
 			logger=logging.getLogger('root')
 			plugins=[]
@@ -29,6 +29,9 @@ class SOAPHandler(BaseHandler):
 					transport=zeep.Transport(session=session),
 					plugins=plugins)
 			finally:
+				soap_client.netcool_service = soap_client.create_service(
+					environments_config[env][prefix + 'service_binding'],
+					environments_config[env][prefix + 'endpoint'])
 				logger.info(
 					"Setting up SOAP client for {env} using {wsdl}".format(
 						env=env,
@@ -40,7 +43,7 @@ class SOAPHandler(BaseHandler):
 			env: setup_soapclient(env)
 			for env in environments_config.sections()
 		}
-		return cls(soap_interfaces_map)
+		return cls(soap_interfaces_map, *args, **kwargs)
 
 	def __call__(self, data, env):
 		raise NotImplementedError

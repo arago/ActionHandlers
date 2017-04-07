@@ -21,7 +21,7 @@ class Session(winrm.Session):
 				raise arago.pyactionhandler.plugins.winrm.exceptions.WinRMError(
 					"No Connection to jumpserver on {jump}: {reason}".format(jump=urlparse.urlparse(self.protocol.transport.endpoint).netloc, reason=e))
 		else:
-			exe = "mode con: cols=1052 & powershell -encodedcommand %s" % (base64_script)
+			exe = "mode con: cols=1052 & powershell -NoProfile -encodedcommand %s" % (base64_script)
 			rs = self.run_cmd(exe)
 		if rs.std_err:
 			raise arago.pyactionhandler.plugins.winrm.exceptions.WinRMError(rs.std_err.decode('cp850'))

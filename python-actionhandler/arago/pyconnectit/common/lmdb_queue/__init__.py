@@ -1,4 +1,5 @@
-from gevent.queue import Queue, Empty, Full
+import gevent
+from gevent.queue import Queue, Empty
 from lz4 import compress, uncompress
 import itertools
 import lmdb
@@ -8,10 +9,13 @@ from functools import partial
 from arago.common.helper import prettify
 
 class LMDBQueue(Queue):
-	def __init__(self, path, maxsize=-1, disksize = 100 * 1024 * 1024, compression=False):
+	def __init__(self, path, maxsize=-1, disksize = 100 * 1024 * 1024,
+				 compression=False):
 		self.path=path
 		self.compression=compression
+		self.disksize=disksize
 		self.logger = logging.getLogger('root')
+		self._sem = gevent.lock.BoundedSemaphore()
 		super().__init__(maxsize=maxsize)
 
 	def copy(self):
@@ -22,44 +26,38 @@ class LMDBQueue(Queue):
 			with txn.cursor(db=self._queue_db) as cursor:
 				if cursor.last():
 					end = int.from_bytes(
-						cursor.key(),
-						byteorder='big',
-						signed=False)
-					self._idx = itertools.count(
-						start=end  + 1, step=1)
+						cursor.key(), byteorder='big', signed=False)
+					self._idx = itertools.count(start = end  + 1, step=1)
 				else:
-					self._idx = itertools.count(
-						start=1, step=1)
+					self._idx = itertools.count(start=1, step=1)
 
 	def _init(self, maxsize, items=None):
 		self._lmdb = lmdb.open(
-			self.path,
-			map_size = 1024 * 1024 * 1024,
-			subdir=False,
-			max_dbs=5,
-			writemap=True,
-			# metasync=False,
-			# sync=False,
-			map_async=True,
-			max_readers=16,
-			max_spare_txns=10)
+			self.path, map_size = self.disksize, subdir=False,
+			max_dbs=5, writemap=True, map_async=True,
+			max_readers=16, max_spare_txns=10)
 		self._queue_db=self._lmdb.open_db(key=b'queue')
 		self._get_counter()
 
 	def _get(self):
-		with self._lmdb.begin(write=True, buffers=True) as txn:
-			with txn.cursor(db=self._queue_db) as cursor:
-				if cursor.first():
-					buf = cursor.pop(cursor.key())
-					return pickle.loads(uncompress(buf)) if self.compression else pickle.loads(buf)
-				else: raise Empty()
+		with self._sem:
+			with self._lmdb.begin(write=True, buffers=True) as txn:
+				with txn.cursor(db=self._queue_db) as cursor:
+					if cursor.first():
+						buf = cursor.pop(cursor.key())
+						return pickle.loads(
+							uncompress(buf)
+						) if self.compression else pickle.loads(buf)
+					else: raise Empty()
 
 	def _peek(self):
 		with self._lmdb.begin(write=False, buffers=True) as txn:
 			with txn.cursor(db=self._queue_db) as cursor:
 				if cursor.first():
 					buf = cursor.value()
-					return pickle.loads(uncompress(buf)) if self.compression else pickle.loads(buf)
+					return pickle.loads(
+						uncompress(buf)
+					) if self.compression else pickle.loads(buf)
 				else: raise Empty()
 
 	def _put(self, item):
@@ -67,9 +65,12 @@ class LMDBQueue(Queue):
 			length=511,
 			byteorder=sys.byteorder,
 			signed=False)
-		data=compress(pickle.dumps(item, protocol=4)) if self.compression else pickle.dumps(item, protocol=4)
-		with self._lmdb.begin(write=True) as txn:
-			txn.put(key, data, append=True, db=self._queue_db)
+		data=compress(
+			pickle.dumps(item, protocol=4)
+		) if self.compression else pickle.dumps(item, protocol=4)
+		with self._sem:
+			with self._lmdb.begin(write=True) as txn:
+				txn.put(key, data, append=True, db=self._queue_db)
 
 	def _qsize(self):
 		return self.qsize()
@@ -85,12 +86,16 @@ class LMDBHashQueue(LMDBQueue):
 		self._hashes_db=self._lmdb.open_db(key=b'hashes')
 
 	def _get(self):
-		with self._lmdb.begin(write=True, buffers=True) as txn:
-			with txn.cursor(db=self._queue_db) as cursor:
-				if cursor.first(): hash_key = cursor.pop(cursor.key())
-				else: raise Empty()
-			buf = txn.pop(hash_key, db=self._hashes_db)
-			return pickle.loads(uncompress(buf)) if self.compression else pickle.loads(buf)
+		with self._sem:
+			with self._lmdb.begin(write=True, buffers=True) as txn:
+				with txn.cursor(db=self._queue_db) as cursor:
+					if cursor.first():
+						hash_key = cursor.pop(cursor.key())
+					else: raise Empty()
+				buf = txn.pop(hash_key, db=self._hashes_db)
+				return pickle.loads(
+					uncompress(buf)
+				) if self.compression else pickle.loads(buf)
 
 	def _peek(self):
 		with self._lmdb.begin(write=False, buffers=True) as txn:
@@ -98,24 +103,30 @@ class LMDBHashQueue(LMDBQueue):
 				if cursor.first(): hash_key = cursor.value()
 				else: raise Empty()
 			buf = txn.get(hash_key, db=self._hashes_db)
-			return pickle.loads(uncompress(buf)) if self.compression else pickle.loads(buf)
+			return pickle.loads(
+				uncompress(buf)
+			) if self.compression else pickle.loads(buf)
 
 	def _put(self, item):
 		hash_key=item.__hash__().to_bytes(
-			length=20,
-			byteorder=sys.byteorder,
-			signed=True)
-		data=compress(pickle.dumps(item, protocol=4)) if self.compression else pickle.dumps(item, protocol=4)
-		with self._lmdb.begin(write=True) as txn:
-			if not txn.replace(hash_key, data, db=self._hashes_db):
-				key =next(self._idx).to_bytes(
-					length=511,
-					byteorder='big',
-					signed=False)
-				self.logger.debug("Queuing new task with SERIAL {sn}".format(sn=int.from_bytes(key, byteorder='big', signed=False)))
-				txn.put(key, hash_key, append=True, db=self._queue_db)
-			else:
-				self.logger.debug("Updating already queued task")
+			length=20, byteorder=sys.byteorder, signed=True)
+		data=compress(
+			pickle.dumps(item, protocol=4)
+		) if self.compression else pickle.dumps(item, protocol=4)
+		with self._sem:
+			with self._lmdb.begin(write=True) as txn:
+				if not txn.replace(
+						hash_key, data, db=self._hashes_db):
+					key =next(self._idx).to_bytes(
+						length=511, byteorder='big', signed=False)
+					self.logger.debug(
+						"Queuing new task with SERIAL {sn}".format(
+							sn=int.from_bytes(
+								key, byteorder='big', signed=False)))
+					txn.put(key, hash_key, append=True,
+						db=self._queue_db)
+				else:
+					self.logger.debug("Updating already queued task")
 
 class LMDBTaskQueue(LMDBHashQueue):
 	def _unpack(self, buf):
@@ -140,6 +151,7 @@ class LMDBTaskQueue(LMDBHashQueue):
 			txn.delete(serial, db=self._queue_db)
 			payload=txn.pop(hash_key, db=self._hashes_db)
 			return self._unpack(payload)
+		self._sem.acquire()
 		txn = self._lmdb.begin(write=True)
 		return self._walk(txn, __get, max_items)
 
@@ -154,7 +166,9 @@ class LMDBTaskQueue(LMDBHashQueue):
 			if self.putters:
 				self._schedule_unlock()
 			return self._get(max_items=max_items)
-		return self._Queue__get_or_peek(partial(self._get, max_items=max_items), block, timeout)
+		return self._Queue__get_or_peek(
+			partial(self._get, max_items=max_items),
+			block, timeout)
 
 	def get_nowait(self, max_items=1):
 		return self.get(block=False, max_items=max_items)
@@ -163,7 +177,9 @@ class LMDBTaskQueue(LMDBHashQueue):
 		if self.qsize():
 			# XXX: Why doesn't this schedule an unlock like get() does?
 			return self._peek(max_items=max_items)
-		return self._Queue__get_or_peek(partial(self._peek, max_items=max_items), block, timeout)
+		return self._Queue__get_or_peek(
+			partial(self._peek, max_items=max_items),
+			block, timeout)
 
 	def peek_nowait(self, max_items=1):
 		return self.peek(block=False, max_items=max_items)

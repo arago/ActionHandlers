@@ -9,14 +9,13 @@ name = 'connectit-netcool-adapter'
 
 distutils.core.setup(
 	name=name,
-	version='0.3',
+	version='0.4',
 	author="Marcus Klemm",
 	author_email="mklemm@arago.de",
 	url="https://arago.co",
 	description="Provide an backsync interface for Netcool",
 	long_description="Receive updates in SDF format from ConnectIT and forward them to NetCool via its SOAP API",
-	packages=['connectit'],
-	scripts=['connectit-netcool-adapter.py'],
+	scripts=['bin/connectit-netcool-adapter.py'],
 	data_files=[
 		(
 			'connectit-netcool-adapter/wsdl',
@@ -25,6 +24,7 @@ distutils.core.setup(
 		(
 			'connectit-netcool-adapter/schemas',
 			[
+				'share/connectit-netcool-adapter/schemas/event.json',
 				'share/connectit-netcool-adapter/schemas/event-comment-added.json',
 				'share/connectit-netcool-adapter/schemas/event-status-change.json'
 			]
@@ -33,7 +33,7 @@ distutils.core.setup(
 			'/opt/autopilot/connectit/conf/',
 			[
 				'config/netcool-adapter/connectit-netcool-adapter.conf',
-				'config/netcool-adapter/connectit-netcool-adapter-netcool.conf'
+				'config/netcool-adapter/connectit-netcool-adapter-environments.conf'
 			]
 		),
 		(

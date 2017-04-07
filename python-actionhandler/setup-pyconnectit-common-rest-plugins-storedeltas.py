@@ -6,22 +6,18 @@ if os.environ.get('USER','') == 'vagrant':
 import distutils.core
 
 distutils.core.setup(
-	name = "arago-common-base",
-	version = "2.0",
+	name = "arago-pyconnectit-common-rest-plugins-storedeltas",
+	version = "2.1",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
-	description = ("Common functions and classes"),
+	description = ("Middleware to store SDF deltas"),
 	license = "MIT",
 	url = "http://www.arago.de",
-	long_description="Common functions and classes",
+	long_description="Middleware to store SDF deltas",
 	classifiers=[
 		"Development Status :: 5 - Production/Stable",
 		"Topic :: Utilities",
 		"License :: OSI Approved :: MIT License",
 	],
-	packages=['arago.common.configparser',
-			  'arago.common.daemon',
-			  'arago.common.helper',
-			  'arago.common.meta'
-	]
+	packages=['arago.pyconnectit.common.rest.plugins.store_deltas']
 )
