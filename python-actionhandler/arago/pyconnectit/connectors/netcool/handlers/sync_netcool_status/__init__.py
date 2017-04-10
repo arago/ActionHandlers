@@ -157,9 +157,7 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 	def gen_event_status_list(self, env, tasks, status_map):
 		return [self.calc_netcool_status(
 			status_update.event_id,
-			self.delta_store_map[env].get_merged(
-				status_update.event_id
-			)['free']['eventNormalizedStatus'],
+			status_update.status['free']['eventNormalizedStatus'],
 			status_map)
 				for status_update in tasks]
 
@@ -285,7 +283,8 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 			self.queue_map[env].put(
 				StatusUpdate(
 					data['mand']['eventId'],
-					data['free']['eventNormalizedStatus']))
+					self.delta_store_map[env].get_merged(
+						data['mand']['eventId'])))
 		except KeyError:
 			self.logger.warn("No queue defined for {env}".format(
 				env=env))
