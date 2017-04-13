@@ -243,7 +243,7 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 						"succeeded, forwarded {x} items:".format(
 							env=env, x=len(tasks)))
 			except Empty:
-				self.logger.debug("No tasks in queue for {env}".format(
+				self.logger.verbose("No tasks in queue for {env}".format(
 					env=env))
 			except (
 					requests.exceptions.ConnectionError,
