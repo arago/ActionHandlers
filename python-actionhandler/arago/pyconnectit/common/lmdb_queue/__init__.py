@@ -128,7 +128,33 @@ class LMDBHashQueue(LMDBQueue):
 				else:
 					self.logger.debug("Updating already queued task")
 
+class QueueTransaction(object):
+	def __init__(self, releasefunc, items):
+		self._releasefunc=releasefunc
+		self._items=items
+
+	def __enter__(self):
+		return self._items
+
+	def __exit__(self, exc_type, exc_value, traceback):
+		if exc_type or exc_value or traceback:
+			self.abort()
+		else:
+			self.commit()
+
+	def commit(self):
+		self._releasefunc(commit=True)
+	def abort(self):
+		self._releasefunc(commit=False)
+
 class LMDBTaskQueue(LMDBHashQueue):
+	def release(self, txn, commit=False):
+		if commit:
+			txn.commit()
+		else:
+			txn.abort()
+		self._sem.release()
+
 	def _unpack(self, buf):
 		if self.compression:
 			return pickle.loads(uncompress(buf))
@@ -139,11 +165,11 @@ class LMDBTaskQueue(LMDBHashQueue):
 		with txn.cursor(db=self._queue_db) as cursor:
 			if cursor.first():
 				return (
-					txn,
-					[op(serial, hash_key)
-					 for serial, hash_key
-					 in next(chunks(cursor.iternext(), size=max_items))]
-				)
+					QueueTransaction(
+						partial(self.release, txn),
+						[op(serial, hash_key)
+						 for serial, hash_key
+						 in next(chunks(cursor.iternext(), size=max_items))]))
 			else: raise Empty()
 
 	def _get(self, max_items=1):

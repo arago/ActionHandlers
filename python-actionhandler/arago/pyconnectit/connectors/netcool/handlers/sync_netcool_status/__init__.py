@@ -91,6 +91,12 @@ class StatusUpdate(object):
 class ResponseDecodeError(Exception):
 	def __init__(self, message):
 		Exception.__init__(self, message)
+class ProcessLimitExceeded(Exception):
+	def __init__(self):
+		Exception.__init__(self, "ProcessLimitExceeded")
+class NetcoolProcessingError(Exception):
+	def __init__(self):
+		Exception.__init__(self, "NetcoolProcessingError")
 
 class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 	def __init__(
@@ -200,20 +206,15 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 		return string
 
 	@staticmethod
-	def decode_response(response):
+	def raise_on_error(response):
 		try:
 			results = {item['name']:item['value']
 					   for item
 					   in response}
 			if results['NetcoolProcessingError'] == 'true':
-				NetcoolProcessingError = True
-			else:
-				NetcoolProcessingError = False
+				raise NetcoolProcessingError()
 			if results['ProcessLimitExceeded'] == 'true':
-				ProcessLimitExceeded = True
-			else:
-				ProcessLimitExceeded = False
-			return (NetcoolProcessingError, ProcessLimitExceeded)
+				raise ProcessLimitExceeded()
 		except KeyError as e:
 			raise ResponseDecodeError(e)
 
@@ -227,59 +228,43 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 		gevent.sleep(interval)
 		while True:
 			try:
-				txn, tasks = self.queue_map[env].get(
-					block=False, max_items=max_items)
-				netcool_status_string = self.gen_netcool_status_string(
-					self.gen_event_status_list(
-						env,
-						tasks,
-						soap_interface.status_map))
-				try:
+				with self.queue_map[env].get(
+					block=False, max_items=max_items) as tasks:
+					netcool_status_string = self.gen_netcool_status_string(
+						self.gen_event_status_list(
+							env,
+							tasks,
+							soap_interface.status_map))
 					response = self.call_netcool(
 						env, netcool_status_string)
-					NetcoolProcessingError, ProcessLimitExceeded = self.decode_response(response)
-					if ProcessLimitExceeded:
-						self.logger.error(
-							"Netcool process limit exceeded, aborting!")
-						txn.abort()
-						self.queue_map[env]._sem.release()
-					elif NetcoolProcessingError:
-						self.logger.error(
-							"Netcool processing error, aborting!")
-						txn.abort()
-						self.queue_map[env]._sem.release()
-					else:
-						self.logger.verbose(
-							"Forwarding updates to Netcool {env} "
-							"succeeded, forwarded {x} items:".format(
-								env=env, x=len(tasks)))
-						txn.commit()
-						self.queue_map[env]._sem.release()
-				except (requests.exceptions.ConnectionError,
-						requests.exceptions.InvalidURL,
-						ResponseDecodeError,
-						zeep.exceptions.TransportError) as e:
-					self.logger.error("SOAP call failed: " + str(e))
-					txn.abort()
-					self.queue_map[env]._sem.release()
-				except Exception as e:
-					self.logger.error("SOAP call failed with unknown error:\n" + traceback.format_exc())
-					txn.abort()
-					self.queue_map[env]._sem.release()
-				except KeyError:
-					self.logger.warning(
-						"No SOAPHandler defined for environment: "
-						"{env}".format(
-							env=env))
-					txn.abort()
-					self.queue_map[env]._sem.release()
+					self.raise_on_error(response)
+					self.logger.verbose(
+						"Forwarding updates to Netcool {env} "
+						"succeeded, forwarded {x} items:".format(
+							env=env, x=len(tasks)))
 			except Empty:
 				self.logger.debug("No tasks in queue for {env}".format(
 					env=env))
+			except (
+					requests.exceptions.ConnectionError,
+					requests.exceptions.InvalidURL,
+					ResponseDecodeError,
+					zeep.exceptions.TransportError
+			) as e:
+				self.logger.error("SOAP call failed: " + str(e))
+			except KeyError:
+				self.logger.warning(
+					"No SOAPHandler defined for environment: "
+					"{env}".format(env=env))
+			except Exception as e:
+				self.logger.error(
+					"SOAP call failed with unknown error:\n"
+					+ traceback.format_exc())
 			finally:
-				self.logger.trace(("Current queue store status for "
-								   "{env}:\n").format(env=env)
-								  + self.queue_map[env].stats())
+				self.logger.trace(
+					"Current queue store status for {env}:\n{stats}".format(
+						env=env,
+						stats=self.queue_map[env].stats()))
 				gevent.sleep(interval)
 
 	def __call__(self, data, env):
