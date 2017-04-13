@@ -164,13 +164,15 @@ class LMDBTaskQueue(LMDBHashQueue):
 	def _walk(self, txn, op, max_items=1):
 		with txn.cursor(db=self._queue_db) as cursor:
 			if cursor.first():
-				return (
-					QueueTransaction(
-						partial(self.release, txn),
-						[op(serial, hash_key)
-						 for serial, hash_key
-						 in next(chunks(cursor.iternext(), size=max_items))]))
-			else: raise Empty()
+				releasefunc = partial(self.release, txn)
+				items = [
+					op(serial, hash_key)
+					for serial, hash_key
+					in next(chunks(cursor.iternext(), size=max_items))
+				]
+				return QueueTransaction(releasefunc, items)
+			else:
+				raise Empty()
 
 	def _get(self, max_items=1):
 		def __get(serial, hash_key):
