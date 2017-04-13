@@ -160,13 +160,6 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 			interval_map=interval_map,
 			prefix=prefix)
 
-	def gen_event_status_list(self, env, tasks, status_map):
-		return [self.calc_netcool_status(
-			status_update.event_id,
-			status_update.status['free']['eventNormalizedStatus'],
-			status_map)
-				for status_update in tasks]
-
 	def calc_netcool_status(
 			self,
 			event_id,
@@ -199,13 +192,6 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 		return job.get()
 
 	@staticmethod
-	def gen_netcool_status_string(event_status_list):
-		string = ''
-		for event_id, status_code in event_status_list:
-			string += event_id + ',' + status_code + '|'
-		return string
-
-	@staticmethod
 	def raise_on_error(response):
 		try:
 			results = {item['name']:item['value']
@@ -229,12 +215,20 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 		while True:
 			try:
 				with self.queue_map[env].get(
-					block=False, max_items=max_items) as tasks:
-					netcool_status_string = self.gen_netcool_status_string(
-						self.gen_event_status_list(
-							env,
-							tasks,
-							soap_interface.status_map))
+					block=False, max_items=max_items
+				) as tasks:
+					event_status_list = [
+						self.calc_netcool_status(
+							status_update.event_id,
+							status_update.status['free']['eventNormalizedStatus'],
+							soap_interface.status_map
+						) for status_update in tasks
+					]
+					netcool_status_list = [
+						event_id + ',' + status_code
+						for event_id, status_code in event_status_list
+					]
+					netcool_status_string = "|".join(netcool_status_list)
 					response = self.call_netcool(
 						env, netcool_status_string)
 					self.raise_on_error(response)
@@ -269,11 +263,11 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 
 	def __call__(self, data, env):
 		try:
-			self.queue_map[env].put(
-				StatusUpdate(
-					data['mand']['eventId'],
-					self.delta_store_map[env].get_merged(
-						data['mand']['eventId'])))
+			event_id = data['mand']['eventId']
+			event = self.delta_store_map[env].get_merged(
+				event_id)
+			status_update = StatusUpdate(event_id, event)
+			self.queue_map[env].put(status_update)
 		except KeyError:
 			self.logger.warn("No queue defined for {env}".format(
 				env=env))
