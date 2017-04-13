@@ -1,5 +1,5 @@
 import logging, zeep
-import requests.exceptions, gevent, hashlib, sys, os
+import requests.exceptions, gevent, hashlib, sys, os, traceback
 from arago.pyconnectit.connectors.common.handlers.soap_handler import SOAPHandler
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty
 
@@ -260,6 +260,10 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 						ResponseDecodeError,
 						zeep.exceptions.TransportError) as e:
 					self.logger.error("SOAP call failed: " + str(e))
+					txn.abort()
+					self.queue_map[env]._sem.release()
+				except Exception as e:
+					self.logger.error("SOAP call failed with unknown error:\n" + traceback.format_exc())
 					txn.abort()
 					self.queue_map[env]._sem.release()
 				except KeyError:
