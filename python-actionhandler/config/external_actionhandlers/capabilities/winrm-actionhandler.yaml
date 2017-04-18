@@ -7,6 +7,12 @@
       Description: "The DOS command to execute"
     - Name: Hostname
       Description: "The hostname of the remote Windows machine"
+    - Name: Username
+      Description: "User account to use, must be user@domain"
+      Default: Administrator@EXAMPLE.COM
+    - Name: Keytab
+      Description: "Kerberos Keytab file"
+      Default: /opt/autopilot/conf/external_actionhandlers/keytabs/Administrator@EXAMPLE.COM.keytab
   - Name: ExecutePowershell
     Description: "Execute a Powershell command on a remote Windows machine"
     Parameter: 
@@ -15,6 +21,12 @@
       Description: "The Powershell command to execute"
     - Name: Hostname
       Description: "The hostname of the remote Windows machine"
+    - Name: Username
+      Description: "User account to use, must be user@domain"
+      Default: Administrator@EXAMPLE.COM
+    - Name: Keytab
+      Description: "Kerberos Keytab file"
+      Default: /opt/autopilot/conf/external_actionhandlers/keytabs/Administrator@EXAMPLE.COM.keytab
   Applicability:
   - Priority: 100
     ModelFilter: 
