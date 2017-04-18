@@ -41,8 +41,8 @@ class ActionHandlerDaemon(Daemon):
 
 		action_handlers = [SyncHandler(
 			WorkerCollection(
-				{"ExecuteCommand":Capability(WinRMCmdAction, ssl=False),
-				 "ExecutePowershell":Capability(WinRMPowershellAction, ssl=False)},
+				{"ExecuteCommand":Capability(WinRMCmdAction),
+				 "ExecutePowershell":Capability(WinRMPowershellAction)},
 				parallel_tasks = actionhandler_config.getint(
 					'ActionHandler', 'ParallelTasks', fallback=5),
 				parallel_tasks_per_worker = actionhandler_config.getint(

@@ -13,6 +13,9 @@
     - Name: Keytab
       Description: "Kerberos Keytab file"
       Default: /opt/autopilot/conf/external_actionhandlers/keytabs/Administrator@EXAMPLE.COM.keytab
+    - Name: UseSSL
+      Description: "Use WinRM over SSL, 'true' or 'false'"
+      Default: false
   - Name: ExecutePowershell
     Description: "Execute a Powershell command on a remote Windows machine"
     Parameter: 
@@ -27,6 +30,9 @@
     - Name: Keytab
       Description: "Kerberos Keytab file"
       Default: /opt/autopilot/conf/external_actionhandlers/keytabs/Administrator@EXAMPLE.COM.keytab
+    - Name: UseSSL
+      Description: "Use WinRM over SSL, 'true' or 'false'"
+      Default: false
   Applicability:
   - Priority: 100
     ModelFilter: 

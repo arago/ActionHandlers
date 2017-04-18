@@ -9,7 +9,7 @@ name = 'winrm-actionhandler'
 
 distutils.core.setup(
 	name = name,
-	version = "2.0",
+	version = "2.1",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("ActionHandler for Microsoft Windows"),

@@ -15,13 +15,6 @@ from requests_kerberos.exceptions import KerberosExchangeError
 
 
 class WinRMCmdAction(Action):
-	def __init__(self, num, node, zmq_info, timeout, parameters, ssl=True):
-		super(WinRMCmdAction, self).__init__(
-			num, node, zmq_info, timeout, parameters)
-		self.logger = logging.getLogger('root')
-		self.customer = parameters['CustomerID'] if 'CustomerID' in parameters else 'default'
-		self.ssl=ssl
-
 	def __str__(self):
 		return "cmd.exe command '{cmd}' on '{node}'".format(
 			cmd=self.parameters['Command'],
@@ -83,8 +76,8 @@ class WinRMCmdAction(Action):
 	def __call__(self):
 		winrm_session=self.init_direct_session(
 			host = self.parameters['Hostname'],
-			protocol = 'https' if self.ssl else 'http',
-			port = '5986' if self.ssl else '5985')
+			protocol = 'https' if self.parameters['UseSSL'] == 'true' else 'http',
+			port = '5986' if self.parameters['UseSSL'] == 'true' else '5985')
 		self.logger.debug("[{anum}] Connecting directly to '{target}'".format(
 			anum=self.num,
 			target=self.parameters['Hostname']))
