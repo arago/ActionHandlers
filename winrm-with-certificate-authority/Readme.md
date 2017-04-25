@@ -1,5 +1,38 @@
 # WinRM ActionHandler with SSL encryption and Certificate Authentication
 
+<!-- TOC depthFrom:1 depthTo:6 withLinks:1 updateOnSave:1 orderedList:0 -->
+
+- [WinRM ActionHandler with SSL encryption and Certificate Authentication](#winrm-actionhandler-with-ssl-encryption-and-certificate-authentication)
+	- [Overview](#overview)
+	- [Certification infrastructure](#certification-infrastructure)
+		- [Active Directory and Windows Enterprise Certification Authority](#active-directory-and-windows-enterprise-certification-authority)
+		- [OpenSSL](#openssl)
+			- [Creating the root certificate](#creating-the-root-certificate)
+			- [Creating the server certificate(s)](#creating-the-server-certificates)
+			- [Creating the client certificate](#creating-the-client-certificate)
+			- [Importing the certificates on the Windows machines](#importing-the-certificates-on-the-windows-machines)
+	- [WinRM configuration](#winrm-configuration)
+		- [Importing the certificates](#importing-the-certificates)
+			- [Open the Microsoft Management Console (mmc.exe) and add the certificates snap-in for the local machine:](#open-the-microsoft-management-console-mmcexe-and-add-the-certificates-snap-in-for-the-local-machine)
+			- [Import the root certificate into the 'Trusted Root Certification Authorities' store:](#import-the-root-certificate-into-the-trusted-root-certification-authorities-store)
+			- [Import the server certificate into the 'Personal' store:](#import-the-server-certificate-into-the-personal-store)
+			- [Import the client certificate into the 'Trusted People' store:](#import-the-client-certificate-into-the-trusted-people-store)
+		- [Enable and start the WinRM service](#enable-and-start-the-winrm-service)
+		- [Creating a SSL listener for WinRM](#creating-a-ssl-listener-for-winrm)
+		- [Add a firewall exception for port 5986](#add-a-firewall-exception-for-port-5986)
+		- [Register the configurations for PowerShell sessions](#register-the-configurations-for-powershell-sessions)
+		- [Certificate mapping](#certificate-mapping)
+		- [Enable certificate authentication](#enable-certificate-authentication)
+	- [AutoPilot ActionHandler](#autopilot-actionhandler)
+		- [Limitations](#limitations)
+		- [Installing python >= 2.7.9](#installing-python-279)
+		- [Installing and configuring the Actionhandler](#installing-and-configuring-the-actionhandler)
+	- [Usage in Knowledge Items](#usage-in-knowledge-items)
+		- [Executing commands and scripts](#executing-commands-and-scripts)
+		- [Exit codes](#exit-codes)
+
+<!-- /TOC -->
+
 ## Overview
 This ActionHandler allows the remote execution of both cmd.exe and Powershell commands on Windows targets via the WinRM protocol. It uses SSL encryption and authentication is achieved by a SSL client certificate, so there is no need to store passwords or password hashes in AutoPilot.
 
@@ -245,7 +278,11 @@ Windows should now be configured for WinRM access using SSL certificates.
 
 ## AutoPilot ActionHandler
 
-The remaining steps need to be taken on the AutoPilot engine node. 
+The remaining steps need to be taken on the AutoPilot engine node.
+
+### Limitations
+
+* The entire decoded command received by the remote server cannot be longer than ~8191 characters in total. See http://support.microsoft.com/kb/830473
 
 ### Installing python >= 2.7.9
 
