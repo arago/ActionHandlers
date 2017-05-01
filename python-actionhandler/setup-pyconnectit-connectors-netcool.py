@@ -7,7 +7,7 @@ import distutils.core
 
 distutils.core.setup(
 	name = "arago-pyconnectit-connectors-netcool",
-	version = "2.1.1",
+	version = "2.1.3",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("pyconnectit handlers for Netcool"),
