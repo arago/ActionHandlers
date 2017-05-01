@@ -74,11 +74,9 @@ class SyncHandler(object):
 			req.ParseFromString(params)
 			params_dict = {param.key: param.value for param in req.params_list}
 			self.logger.debug("[{anum}] Decoded RPC message".format(anum=anum))
-			return (anum,
-					req.capability,
-					req.time_out,
-					params_dict,
-					(id1, id2, svc_call))
+			return (
+				anum, req.capability, req.time_out,
+				params_dict, (id1, id2, svc_call))
 		except (DecodeRPCError)  as e:
 			self.logger.error("Could not decode RPC message")
 			raise

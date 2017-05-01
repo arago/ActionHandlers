@@ -75,7 +75,12 @@ class WinRMCmdAction(Action):
 					self.statusmsg=parsed_err
 				else:
 					self.logger.error("[{anum}] An error occured during command execution on {node}: Kerberos: {err}".format(anum=self.num, node=self.node,err=str(e)))
-			except (winrm.exceptions.WinRMError, winrm.exceptions.WinRMTransportError, arago.pyactionhandler.plugins.winrm.exceptions.WinRMError, requests.exceptions.ConnectTimeout) as e:
+			except (
+					winrm.exceptions.WinRMError,
+					winrm.exceptions.WinRMTransportError,
+					arago.pyactionhandler.plugins.winrm.exceptions.WinRMError,
+					requests.exceptions.RequestException
+			) as e:
 				self.statusmsg=str(e)
 				self.success=False
 				self.system_rc=-1
