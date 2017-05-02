@@ -81,7 +81,8 @@ Check `aws-cli` version (please note that `aws-cli` writes `--version` output to
     </Do>
 </KI>
 ```
-`$GlobalOpts` variable may be used for overriding the region, for example:
+`$GlobalOpts` parameter may be used for overriding the AWS region:
+
 ```xml
 <KI xmlns="https://graphit.co/schemas/v2/KiSchema" ID="HaaS:DescribeVPCs">
     <Title>HaaS:DescribeVPCs</Title>
