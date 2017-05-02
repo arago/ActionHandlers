@@ -96,7 +96,7 @@ Check `aws-cli` version (please note that `aws-cli` writes `--version` output to
     </When>
     <Do>
         <Action Capability="AWS">
-            <Parameter Name="Command"><![CDATA[ec2 describe-vpc]]></Parameter>
+            <Parameter Name="Command"><![CDATA[ec2 describe-vpcs]]></Parameter>
             <Parameter Name="GlobalOpts"><![CDATA[--region eu-central-1]]></Parameter>
         </Action>
     </Do>
