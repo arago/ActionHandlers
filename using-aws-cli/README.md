@@ -85,7 +85,7 @@ Check `aws-cli` version (please note that `aws-cli` writes `--version` output to
 ```xml
 <KI xmlns="https://graphit.co/schemas/v2/KiSchema" ID="HaaS:DescribeVPCs">
     <Title>HaaS:DescribeVPCs</Title>
-    <Description>Prints the list and attributes of all VPCs in the eu-Central-1 region</Description>
+    <Description>Prints the list and attributes of all VPCs in the EU-Central-1 region</Description>
     <On>
         <Description/>
         <Var Mode="string" Name="MachineClass" Value="Linux"/>
