@@ -24,7 +24,7 @@ more detail can be found on https://aws.amazon.com/documentation/iam/
 * switch user to 'arago' (run-user of HIRO engine) and then configure AWS CLI is described on http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-quick-configuration:
 ** enter access key and secret from previous step
 ** set "Default output format" to `json`
-* test if 'aws' command is working for user 'arago' 
+* test if 'aws' command is working for user 'arago'
 
 
 ##  Preparation on HIRO Engine host II: configure action handler
@@ -49,6 +49,56 @@ Add the following secitont to section `GenericHandler:` of file `/opt/autopilot/
       Mandatory: false
 ```
 
-## Sample usage KnowledgeItem
+## Sample usage KnowledgeItems
 
+Check `aws-cli` version (please note that `aws-cli` writes `--version` output to StdErr by default)
 
+```xml
+<KI xmlns="https://graphit.co/schemas/v2/KiSchema" ID="AWS:checkversion">
+    <Title>Check AWS version</Title>
+    <Description>checks the aws cli version</Description>
+    <On>
+        <Description/>
+        <Var Mode="string" Name="MachineClass" Value="Linux"/>
+    </On>
+    <When>
+        <Description/>
+        <Var Mode="exists" Name="AWS_CHECK_VERSION"/>
+    </When>
+    <Do>
+        <Action Capability="AWS">
+            <Parameter Name="Service"><![CDATA[--version]]></Parameter>
+        </Action>
+        <If>
+            <And>
+                <VarCondition Mode="eq" Value="0" VarString="LOCAL:ACTIONSYSTEMRC"/>
+                <VarCondition Mode="startswith" Value="aws-cli" VarString="LOCAL:ACTIONERROR"/>
+            </And>
+            <Then>
+                <VarDelete Name="AWS_CHECK_VERSION"/>
+            </Then>
+        </If>
+    </Do>
+</KI>
+```
+`$GlobalOpts` variable may be used for overriding the region, for example:
+```xml
+<KI xmlns="https://graphit.co/schemas/v2/KiSchema" ID="HaaS:DescribeVPCs">
+    <Title>HaaS:DescribeVPCs</Title>
+    <Description>Prints the list and attributes of all VPCs in the eu-Central-1 region</Description>
+    <On>
+        <Description/>
+        <Var Mode="string" Name="MachineClass" Value="Linux"/>
+    </On>
+    <When>
+        <Description/>
+        <Var Mode="exists" Name="DescribeVPCs"/>
+    </When>
+    <Do>
+        <Action Capability="AWS">
+            <Parameter Name="Command"><![CDATA[ec2 describe-vpc]]></Parameter>
+            <Parameter Name="GlobalOpts"><![CDATA[--region eu-central-1]]></Parameter>
+        </Action>
+    </Do>
+</KI>    
+```
