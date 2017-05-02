@@ -100,6 +100,12 @@ Check `aws-cli` version (please note that `aws-cli` writes `--version` output to
             <Parameter Name="Command"><![CDATA[ec2 describe-vpcs]]></Parameter>
             <Parameter Name="GlobalOpts"><![CDATA[--region eu-central-1]]></Parameter>
         </Action>
+        <If>
+            <VarCondition Mode="eq" Value="0" VarString="LOCAL:ACTIONSYSTEMRC"/>
+            <Then>
+                <VarDelete Name="DescribeVPCs"/>
+            </Then>
+        </If>
     </Do>
 </KI>    
 ```
