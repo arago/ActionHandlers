@@ -9,7 +9,7 @@ name = 'arago-pyactionhandler-winrm'
 
 distutils.core.setup(
 	name = name,
-	version = "2.2",
+	version = "2.3",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("WinRM module for pyactionhandler"),
