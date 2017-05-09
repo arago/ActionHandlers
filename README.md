@@ -1,9 +1,11 @@
 # HIRO Engine ActionHandlers
 This project contains commonly proven actionhandler configurations for HIRO.
 
-We really do value contribution and feedback.
+NOTE: These ActionHandlers are not covered by official arago support.
 
-https://hiro.arago.co/
+We really do value contribution and feedback, and if you have questions, please visit:
+
+https://hiro.community/
 
 # Contributing
 
