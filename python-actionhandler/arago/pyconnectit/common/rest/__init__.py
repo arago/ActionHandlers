@@ -1,4 +1,4 @@
-import logging, falcon, sys
+import logging, falcon, sys, hashlib
 from urllib.parse import urlparse
 from configparser import NoSectionError, NoOptionError
 from arago.pyconnectit.common.rest.plugins.require_json import RequireJSON
@@ -10,39 +10,82 @@ from arago.pyconnectit.common.rest.plugins.store_deltas import StoreDeltas
 from arago.pyconnectit.common.lmdb_queue import Empty
 from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import QueuingError
 
-class RESTAPI(object):
-	def __init__(self, baseurl, endpoint, middleware=[]):
+class Queue(object):
+	def __init__(self, queue_map):
+		self.queue_map=queue_map
 		self.logger = logging.getLogger('root')
-		self.app=falcon.API(middleware=middleware)
-		self.app.add_route(
-			baseurl.path + '/events/{env}', endpoint)
 
-	@classmethod
-	def from_config(cls, adapter_config, environments_config, delta_store_map={}, triggers=[]):
-		logger = logging.getLogger('root')
-		endpoint=Endpoint(triggers, delta_store_map)
-		middleware = [
-			RestrictEnvironment(environments_config.sections()),
-			RequireJSON(),
-			JSONTranslator(),
-			StoreDeltas([endpoint], delta_store_map)
-		]
+	def on_delete(self, req, resp, env):
+		self.logger.info("Dropping queue for {env}!".format(env=env))
+		self.queue_map[env].drop()
+		resp.status = falcon.HTTP_204
+
+	def on_get(self, req, resp, env):
+		if req.get_param('info') == 'true':
+			resp.context['result'] = {
+				"queueName":env,
+				"queuePath":self.queue_map[env].path,
+				"maxDiskSize":self.queue_map[env].disksize,
+				"compression":self.queue_map[env].compression,
+				"entries":self.queue_map[env].qsize()
+			}
+			resp.status = falcon.HTTP_200
+			return
+		if req.get_param('count') == 'true':
+			resp.context['result'] = self.queue_map[env].qsize()
+			resp.status = falcon.HTTP_200
+			return
 		try:
-			if adapter_config.getboolean('Authentication', 'enabled'):
-				middleware.append(BasicAuthentication.from_config(adapter_config['Authentication']))
-			else:
-				logger.warn("REST API does not require any authentication")
-		except (NoSectionError, NoOptionError) as e:
-			logger.warn("REST API does not require any authentication")
-		except KeyError:
-			logger.critical("Authentication enabled but no credentials set")
-			sys.exit(5)
-		if logger.getEffectiveLevel() <= logger.TRACE:
-			middleware.append(RESTLogger())
-		baseurl=urlparse(adapter_config['RESTInterface']['base_url'])
-		return cls(baseurl, endpoint, middleware=middleware)
+			with self.queue_map[env].peek(block=False, max_items=None) as events:
+				resp.context['result'] = [
+					{
+						"eventId":event.event_id,
+						"eventName":event.status['mand']['eventName'],
+						"status":event.status['free']['eventNormalizedStatus'][-1]['value'] if 'free' in event.status and 'eventNormalizedStatus' in event.status['free'] else None,
+						"links": [
+							{
+								"rel":"self",
+								"href":req.relative_uri + "/{id}".format(id=event.event_id)
+							}
+						]
+					}
+					for event
+					in events
+				]
+			resp.status = falcon.HTTP_200
+			return
+		except Empty:
+			resp.context['result'] = []
+			resp.status = falcon.HTTP_200
+			return
 
-class Endpoint(object):
+class QueueObj(object):
+	def __init__(self, queue_map):
+		self.queue_map=queue_map
+		self.logger = logging.getLogger('root')
+
+	def on_get(self, req, resp, env, event_id):
+		hash_key = hashlib.sha1(event_id.encode('utf-8')).digest()
+		data = self.queue_map[env].peek_by_hash(hash_key)
+		if data:
+			resp.context['result'] = data
+			resp.status = falcon.HTTP_200
+			return
+		else:
+			resp.status = falcon.HTTP_404
+			return
+
+	def on_delete(self, req, resp, env, event_id):
+		hash_key = hashlib.sha1(event_id.encode('utf-8')).digest()
+		result = self.queue_map[env].unqueue_by_hash(hash_key)
+		if result:
+			resp.status = falcon.HTTP_204
+			return
+		else:
+			resp.status = falcon.HTTP_404
+			return
+
+class Events(object):
 	def __init__(self, triggers, delta_store_map):
 		self.logger = logging.getLogger('root')
 		self.triggers = triggers

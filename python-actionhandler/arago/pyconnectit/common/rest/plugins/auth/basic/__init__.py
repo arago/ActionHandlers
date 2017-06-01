@@ -16,7 +16,7 @@ class BasicAuthentication(object):
 			description = ('Please provide authentication '
 						   'credentials as part of the request.')
 			raise falcon.HTTPUnauthorized(
-				'Auth token required',
+				'Authentication required',
 				description,
 				challenges)
 		if not self._credentials_are_valid(credentials):

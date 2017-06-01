@@ -27,7 +27,7 @@ class Trigger(object):
 					s=os.path.basename(self.schemafile.name),
 					handlers=[str(handler) for handler in self.handlers]))
 			results = [gevent.spawn(handler, data, env) for handler in self.handlers]
-			gevent.joinall(results)
+			[result.get() for result in results]
 		except (jsonschema.ValidationError, fastjsonschema.JsonSchemaException):
 			self.logger.debug((
 				"Schema {s} could not be validated, "

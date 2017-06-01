@@ -162,7 +162,7 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 							status_update.event_id,
 							status_update.status['free']['eventNormalizedStatus'],
 							soap_interface.status_map
-						) for status_update in tasks
+						) for status_update in tasks if status_update
 					]
 					netcool_status_list = [
 						event_id + ',' + status_code
@@ -172,7 +172,7 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 					response = self.call_netcool(
 						env, netcool_status_string)
 					self.raise_on_error(response)
-					self.logger.verbose(
+					self.logger.info(
 						"Forwarding updates to Netcool {env} "
 						"succeeded, forwarded {x} items:".format(
 							env=env, x=len(tasks)))
@@ -183,7 +183,8 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 					requests.exceptions.ConnectionError,
 					requests.exceptions.InvalidURL,
 					ResponseDecodeError,
-					zeep.exceptions.TransportError
+					zeep.exceptions.TransportError,
+					NetcoolProcessingError
 			) as e:
 				self.logger.error("SOAP call failed: " + str(e))
 			except KeyError:
