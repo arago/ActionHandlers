@@ -9,7 +9,7 @@ name = 'connectit-netcool-adapter'
 
 distutils.core.setup(
 	name=name,
-	version='0.4',
+	version='0.6.1',
 	author="Marcus Klemm",
 	author_email="mklemm@arago.de",
 	url="https://arago.co",
@@ -19,13 +19,14 @@ distutils.core.setup(
 	data_files=[
 		(
 			'connectit-netcool-adapter/wsdl',
-			['share/connectit-netcool-adapter/wsdl/netcool.wsdl']
+			['share/connectit-netcool-adapter/wsdl/netcool.wsdl', 'share/connectit-netcool-adapter/wsdl/snow.wsdl']
 		),
 		(
 			'connectit-netcool-adapter/schemas',
 			[
 				'share/connectit-netcool-adapter/schemas/event.json',
 				'share/connectit-netcool-adapter/schemas/event-comment-added.json',
+				'share/connectit-netcool-adapter/schemas/event-status-ejected.json',
 				'share/connectit-netcool-adapter/schemas/event-status-change.json'
 			]
 		),

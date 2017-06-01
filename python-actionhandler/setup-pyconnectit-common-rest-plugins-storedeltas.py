@@ -7,7 +7,7 @@ import distutils.core
 
 distutils.core.setup(
 	name = "arago-pyconnectit-common-rest-plugins-storedeltas",
-	version = "2.1",
+	version = "2.2",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("Middleware to store SDF deltas"),
