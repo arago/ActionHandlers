@@ -1,0 +1,39 @@
+- Capability:
+  - Name: SnowCreateTicket
+    Description: Open a new incident ticket in ServiceNow
+    Parameter:
+    - Name: Environment
+      Description: ServiceNow instance to use
+      Default: DEV
+    - Name: System
+      Description: INKA, SWCI, Support Unit or Support Unit ID for this MARSNode
+      Default: ${INKA}
+    - Name: Summary
+      Description: Short description
+      Mandatory: true
+    - Name: NetcoolID
+      Description: ID of the initial Event in Netcool
+      Mandatory: true
+    - Name: WorkNotes
+      Description: Work notes to attach to the ticket
+      Default: __ISSUE_LOG__
+    - Name: Severity
+      Description: Severity of the incident
+      Mandatory: false
+    - Name: FirstOccurrence
+      Description: First occurrence of the Netcool event
+      Mandatory: false
+    - Name: Location
+      Description: Location of the MARSNode
+      Mandatory: false
+    - Name: OwnerGID
+      Description: GID of the Owner of the MARSNode
+      Mandatory: false
+    - Name: Subclass
+      Description: Subclass of the MARSNode
+      Mandatory: false
+  Applicability:
+  - Priotity: 100
+    ModelFilter:
+    - TrueFilter:
+        {}
