@@ -1,14 +1,15 @@
-<wsdl:definitions targetNamespace="http://www.service-now.com/UBSTask" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:tns="http://www.service-now.com/UBSTask" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions targetNamespace="http://www.service-now.com/UBSTask" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:tns="http://www.service-now.com/UBSTask" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/">
   <wsdl:types>
     <xsd:schema elementFormDefault="unqualified" targetNamespace="http://www.service-now.com/UBSTask">
-      <xsd:element name="execute">
-        <xsd:complexType>
+	  <xsd:element name="execute">
+		<xsd:complexType>
           <xsd:sequence>
             <xsd:element name="UBStable" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="UBStype" type="xsd:string"/>
             <xsd:element name="UBSaction" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="UBSnumber" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="system" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="system" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="level">
               <xsd:simpleType>
                 <xsd:restriction base="xsd:int">
@@ -18,12 +19,12 @@
               </xsd:simpleType>
             </xsd:element>
             <xsd:element maxOccurs="1" minOccurs="0" name="reported_on" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="summary" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="details" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="netcool_id" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="arago_id" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="summary" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="details" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="netcool_id" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="arago_id" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="error_code" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="tranasction_time" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="0" name="transaction_time" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="priority">
               <xsd:simpleType>
                 <xsd:restriction base="xsd:int">
@@ -50,26 +51,30 @@
       <xsd:element name="executeResponse">
         <xsd:complexType>
           <xsd:sequence>
-            <xsd:element maxOccurs="1" minOccurs="0" name="incident_no" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="0" name="inc_number" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="number" type="xsd:string"/>
             <xsd:element name="UBSstatus" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="UBSerror_code" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="UBSerror_message" type="xsd:string"/>
           </xsd:sequence>
-        </xsd:complexType>
-      </xsd:element>
-    </xsd:schema>
+	    </xsd:complexType>
+	  </xsd:element>
+	</xsd:schema>
   </wsdl:types>
-  <wsdl:message name="executeSoapOut">
-    <wsdl:part element="tns:executeResponse" name="UBSTask"></wsdl:part>
-  </wsdl:message>
   <wsdl:message name="executeSoapIn">
-    <wsdl:part element="tns:execute" name="UBSTask"></wsdl:part>
+    <wsdl:part name="UBSTask" element="tns:execute">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="executeSoapOut">
+    <wsdl:part name="UBSTask" element="tns:executeResponse">
+    </wsdl:part>
   </wsdl:message>
   <wsdl:portType name="ServiceNowSoap">
     <wsdl:operation name="execute">
-      <wsdl:input message="tns:executeSoapIn"></wsdl:input>
-      <wsdl:output message="tns:executeSoapOut"></wsdl:output>
+      <wsdl:input message="tns:executeSoapIn">
+    </wsdl:input>
+      <wsdl:output message="tns:executeSoapOut">
+    </wsdl:output>
     </wsdl:operation>
   </wsdl:portType>
   <wsdl:binding name="ServiceNowSoap" type="tns:ServiceNowSoap">
@@ -85,7 +90,7 @@
     </wsdl:operation>
   </wsdl:binding>
   <wsdl:service name="ServiceNow_UBSTask">
-    <wsdl:port binding="tns:ServiceNowSoap" name="ServiceNowSoap">
+    <wsdl:port name="ServiceNowSoap" binding="tns:ServiceNowSoap">
       <soap:address location="https://gsnowdev.ubsdev.net/webservices/UBSTask.do?SOAP"/>
     </wsdl:port>
   </wsdl:service>
