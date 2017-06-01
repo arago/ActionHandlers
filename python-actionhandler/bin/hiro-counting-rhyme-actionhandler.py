@@ -11,6 +11,7 @@ from arago.pyactionhandler.worker_collection import WorkerCollection
 from arago.pyactionhandler.handler import SyncHandler
 from arago.pyactionhandler.capability import Capability
 from arago.common.configparser import ConfigParser
+from configparser import NoSectionError, NoOptionError
 from arago.common.daemon import daemon as Daemon
 from arago.pyactionhandler.action import Action
 
@@ -177,11 +178,22 @@ class ActionHandlerDaemon(Daemon):
 		#
 		# The Worker will remove the first <parallel_tasks_per_worker> action(s) from its queue,
 		# execute them and put the results back onto the worker collection's response queue.
+		try:
+			if not actionhandler_config.getboolean('Encryption', 'enabled'):
+				raise ValueError
+			zmq_auth = (
+				actionhandler_config.get('Encryption', 'server-public-key', raw=True).encode('ascii'),
+				actionhandler_config.get('Encryption', 'server-private-key', raw=True).encode('ascii')
+			)
+		except (ValueError, NoSectionError, NoOptionError):
+			zmq_auth = None
+
 		counting_rhyme_handler = SyncHandler(
 			worker_collection,
 			# The socket(s) the Actionhandler will listen on, hardcoded in this example but
 			# should really be read from a config file
-			zmq_url = 'tcp://*:7291'
+			zmq_url = 'tcp://*:7291',
+			auth = zmq_auth
 		)
 
 

@@ -13,6 +13,7 @@ from arago.pyactionhandler.worker_collection import WorkerCollection
 from arago.pyactionhandler.handler import SyncHandler
 from arago.pyactionhandler.capability import Capability
 from arago.common.configparser import ConfigParser
+from configparser import NoSectionError, NoOptionError
 from arago.common.daemon import daemon as Daemon
 from arago.pyactionhandler.plugins.winrm import WinRMCmdAction, WinRMPowershellAction
 
@@ -39,6 +40,16 @@ class ActionHandlerDaemon(Daemon):
 			logger.addHandler(ch)
 			logger.info("Logging also to console")
 
+		try:
+			if not actionhandler_config.getboolean('Encryption', 'enabled'):
+				raise ValueError
+			zmq_auth = (
+				actionhandler_config.get('Encryption', 'server-public-key', raw=True).encode('ascii'),
+				actionhandler_config.get('Encryption', 'server-private-key', raw=True).encode('ascii')
+			)
+		except (ValueError, NoSectionError, NoOptionError):
+			zmq_auth = None
+
 		action_handlers = [SyncHandler(
 			WorkerCollection(
 				{"ExecuteCommand":Capability(WinRMCmdAction),
@@ -50,7 +61,7 @@ class ActionHandlerDaemon(Daemon):
 				worker_max_idle = actionhandler_config.getint(
 					'ActionHandler', 'WorkerMaxIdle', fallback=300)),
 			zmq_url = actionhandler_config.get(
-				'ActionHandler', 'ZMQ_URL'))]
+				'ActionHandler', 'ZMQ_URL'), auth=zmq_auth)]
 
 		def exit_gracefully():
 			logger.info("Starting shutdown")

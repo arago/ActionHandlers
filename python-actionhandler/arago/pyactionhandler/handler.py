@@ -1,5 +1,6 @@
-import gevent
+import gevent, sys
 import zmq.green as zmq
+from zmq.error import ZMQError
 from greenlet import GreenletExit
 import greenlet
 from arago.pyactionhandler.exceptions import DecodeRPCError
@@ -32,12 +33,22 @@ def decode_rpc_call(message):
 	return service, method
 
 class SyncHandler(object):
-	def __init__(self, worker_collection, zmq_url):
+	def __init__(self, worker_collection, zmq_url, auth=None):
 		self.logger = logging.getLogger('root')
 		self.worker_collection=worker_collection
 		self.zmq_url=zmq_url
 		self.zmq_ctx = zmq.Context()
 		self.zmq_socket = self.zmq_ctx.socket(zmq.ROUTER)
+		if auth:
+			try:
+				self.logger.info("Using CURVE encryption for HIRO engine interface")
+				self.zmq_socket.curve_publickey, self.zmq_socket.curve_secretkey = auth
+				self.zmq_socket.curve_server = True
+			except ZMQError:
+				self.logger.critical("CURVE keys malformed, please check your config file!")
+				sys.exit(5)
+		else:
+			self.logger.warn("HIRO engine interface is not encrypted!")
 		self.zmq_socket.bind(self.zmq_url)
 		self.response_queue=gevent.queue.JoinableQueue(maxsize=0)
 		self.worker_collection.register_response_queue(
@@ -86,7 +97,7 @@ class SyncHandler(object):
 			self.logger.info("Started handling requests")
 			while True:
 				if self.worker_collection.task_queue.unfinished_tasks >= self.worker_collection.parallel_tasks:
-					gevent.sleep(1)
+					gevent.sleep(0.001)
 					continue
 				try:
 					anum, capability, timeout, params, zmq_info = self.next_request()
