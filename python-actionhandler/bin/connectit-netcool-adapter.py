@@ -25,6 +25,7 @@ from arago.pyconnectit.connectors.common.trigger import FastTrigger
 from arago.pyconnectit.connectors.common.handlers.log_status_change import LogStatusChange
 from arago.pyconnectit.connectors.common.handlers.log_comments import LogComments
 from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import BatchSyncNetcoolStatus
+from arago.pyconnectit.connectors.snow.handlers.open_snow_ticket import BatchOpenSnowTicket
 from arago.pyconnectit.common.delta_store import DeltaStore
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue
 from arago.pyconnectit.common.rest.plugins.require_json import RequireJSON
@@ -126,6 +127,12 @@ class ConnectitDaemon(Daemon):
 				'Queue', 'max_size_in_mb', fallback=200))
 					 for env
 					 in environments_config.sections()}
+		snow_queue_map = {env:LMDBTaskQueue(
+			os.path.join(adapter_config['SnowQueue']['data_dir'], env),
+			disksize = 1024 * 1024 * adapter_config.getint(
+				'Queue', 'max_size_in_mb', fallback=200))
+					 for env
+					 in environments_config.sections()}
 		prefix = 'netcool_'
 		max_items_map = {
 			env:environments_config.getint(
@@ -182,6 +189,11 @@ class ConnectitDaemon(Daemon):
 			for env in environments_config.sections()
 		}
 
+		snow_interfaces_map = {
+			env: setup_soapclient(env, 'snow_')
+			for env in environments_config.sections()
+		}
+
 		# Configure Triggers and Handlers
 
 		log_status_handler = LogStatusChange()
@@ -196,10 +208,19 @@ class ConnectitDaemon(Daemon):
 			interval_map=interval_map
 		)
 
+		open_snow_ticket = BatchOpenSnowTicket(
+			snow_interfaces_map,
+			delta_store_map=delta_store_map,
+			queue_map=snow_queue_map
+		)
+
 		status_change_schema = open(os.path.join(share_dir, "schemas/event-status-change.json"))
 		comment_added_schema = open(os.path.join(share_dir, "schemas/event-comment-added.json"))
+		status_ejected_schema = open(os.path.join(share_dir, "schemas/event-status-ejected.json"))
+
 		triggers= [
 			FastTrigger(status_change_schema, [log_status_handler, sync_status_netcool_handler]),
+			FastTrigger(status_ejected_schema, [open_snow_ticket]),
 			FastTrigger(comment_added_schema, [log_comment_handler])
 		]
 
@@ -233,6 +254,8 @@ class ConnectitDaemon(Daemon):
 		rest_api.add_route(baseurl.path + '/{env}/events/', events)
 		rest_api.add_route(baseurl.path + '/{env}/netcool-queue/', netcool_queue)
 		rest_api.add_route(baseurl.path + '/{env}/netcool-queue/{event_id}', netcool_queue_slot)
+		rest_api.add_route(baseurl.path + '/{env}/snow-queue/', snow_queue)
+		rest_api.add_route(baseurl.path + '/{env}/snow-queue/{event_id}', snow_queue_slot)
 
 		server = gevent.pywsgi.WSGIServer(
 			(baseurl.hostname, baseurl.port),

@@ -16,30 +16,6 @@ class SyncNetcoolStatus(SOAPHandler):
 			for env, soap_interface
 			in soap_interfaces_map.items()}
 
-	@classmethod
-	def from_config(
-			cls,
-			adapter_config,
-			environments_config,
-			prefix='netcool_',
-			*args,
-			**kwargs):
-		status_map_map={
-			env:{status.replace(
-				prefix + 'status_', '', 1).capitalize():code
-				 for status, code
-				 in environments_config['DEFAULT'].items()
-				 if status.startswith('netcool_status_')}
-			for env
-			in environments_config.sections()}
-		return super().from_config(
-			adapter_config,
-			environments_config,
-			prefix=prefix,
-			status_map_map=status_map_map,
-			*args,
-			**kwargs)
-
 	def sync(self, env, event_id, status):
 		try:
 			self.soap_interfaces_map[env].netcool_service.runPolicy(
@@ -123,45 +99,6 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 				interval=interval_map[env])
 			for env, interface
 			in soap_interfaces_map.items()]
-
-	@classmethod
-	def from_config(
-			cls,
-			adapter_config,
-			environments_config,
-			delta_store_map={},
-			prefix='netcool_'):
-		path = adapter_config['Queue']['data_dir']
-		try:
-			os.makedirs(path, mode=0o700, exist_ok=True)
-		except OSError as e:
-			logger=logging.getLogger('root')
-			logger.critical("Can't create data directory: " + e)
-			sys.exit(5)
-		queue_map = {env:LMDBTaskQueue(
-			os.path.join(path, env),
-			disksize = 1024 * 1024 * adapter_config.getint(
-				'Queue', 'max_size_in_mb', fallback=200))
-					 for env
-					 in environments_config.sections()}
-		max_items_map = {
-			env:environments_config.getint(
-				env, prefix + 'sync_amount',
-				fallback=100)
-			for env in environments_config.sections()}
-		interval_map = {
-			env:environments_config.getint(
-				env, prefix + 'sync_interval_in_seconds',
-				fallback=60)
-			for env in environments_config.sections()}
-		return super().from_config(
-			adapter_config,
-			environments_config,
-			delta_store_map=delta_store_map,
-			queue_map=queue_map,
-			max_items_map=max_items_map,
-			interval_map=interval_map,
-			prefix=prefix)
 
 	def calc_netcool_status(
 			self,

@@ -7,16 +7,6 @@ class BasicAuthentication(object):
 		self.username = username
 		self.password = password
 
-	@classmethod
-	def from_config(cls, auth_config):
-		logger = logging.getLogger('root')
-		username = auth_config.get('username')
-		password = auth_config.get('password')
-		if not (username and password):
-			raise KeyError
-		logger.info("Setting up Basic Authentication for REST API")
-		return cls(username, password)
-
 	def process_request(self, req, resp):
 		credentials = req.get_header('Authorization')
 
