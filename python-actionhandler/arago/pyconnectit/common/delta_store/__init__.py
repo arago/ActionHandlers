@@ -4,6 +4,11 @@ import ujson as json
 from arago.common.helper import prettify
 from lz4 import compress, uncompress
 
+
+class DeltaStoreFull(Exception):
+	def __init__(self, message):
+		Exception.__init__(self, message)
+
 class DeltaStore(object):
 	def __init__(self, db_path, max_size, schemafile):
 		self.db_path=db_path
@@ -100,27 +105,30 @@ class DeltaStore(object):
 							self.delete(eventId)
 
 	def append(self, eventId, data):
-		with self._sem:
-			with self.lmdb.begin(write=True) as txn:
-				eventId = eventId.encode('utf-8')
-				data = compress(json.dumps(data))
-				mtime = int(time.time() * 1000).to_bytes(
-					length=6,
-					byteorder=sys.byteorder,
-					signed=False)
-				delta_idx = next(self.delta_idx).to_bytes(
-					length=511,
-					byteorder='big',
-					signed=False)
-				index_db = self.lmdb.open_db(
-					key=self.index_name, txn=txn, dupsort=True)
-				mtimes_db = self.lmdb.open_db(
-					key=self.mtimes_name, txn=txn)
-				deltas_db = self.lmdb.open_db(
-					key=self.deltas_name, txn=txn)
-				txn.put(delta_idx, data, append=True, db=deltas_db)
-				txn.put(eventId, delta_idx, dupdata=True, db=index_db)
-				txn.put(eventId, mtime, overwrite=True, db=mtimes_db)
+		try:
+			with self._sem:
+				with self.lmdb.begin(write=True) as txn:
+					eventId = eventId.encode('utf-8')
+					data = compress(json.dumps(data))
+					mtime = int(time.time() * 1000).to_bytes(
+						length=6,
+						byteorder=sys.byteorder,
+						signed=False)
+					delta_idx = next(self.delta_idx).to_bytes(
+						length=511,
+						byteorder='big',
+						signed=False)
+					index_db = self.lmdb.open_db(
+						key=self.index_name, txn=txn, dupsort=True)
+					mtimes_db = self.lmdb.open_db(
+						key=self.mtimes_name, txn=txn)
+					deltas_db = self.lmdb.open_db(
+						key=self.deltas_name, txn=txn)
+					txn.put(delta_idx, data, append=True, db=deltas_db)
+					txn.put(eventId, delta_idx, dupdata=True, db=index_db)
+					txn.put(eventId, mtime, overwrite=True, db=mtimes_db)
+		except lmdb.MapFullError:
+			raise DeltaStoreFull("Database file at {path} has reached its maximum size!".format(path=self.db_path))
 	def get_merged(self, eventId):
 		self.logger.debug("Merging event: " + eventId)
 		with self.lmdb.begin() as txn:

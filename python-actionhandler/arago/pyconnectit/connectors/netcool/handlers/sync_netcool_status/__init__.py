@@ -1,7 +1,7 @@
 import logging, zeep
 import requests.exceptions, gevent, hashlib, sys, os, traceback
 from arago.pyconnectit.connectors.common.handlers.soap_handler import SOAPHandler
-from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty
+from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty, Full
 
 class SyncNetcoolStatus(SOAPHandler):
 	def __init__(self, soap_interfaces_map, status_map_map={}):
@@ -96,7 +96,10 @@ class ProcessLimitExceeded(Exception):
 		Exception.__init__(self, "ProcessLimitExceeded")
 class NetcoolProcessingError(Exception):
 	def __init__(self):
-		Exception.__init__(self, "NetcoolProcessingError")
+		Exception.__init__(self, "Netcool returned ProcessingError, check queue for invalid data!")
+class QueuingError(Exception):
+	def __init__(self, message):
+		Exception.__init__(self, message)
 
 class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 	def __init__(
@@ -268,6 +271,8 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 				event_id)
 			status_update = StatusUpdate(event_id, event)
 			self.queue_map[env].put(status_update)
+		except Full:
+			raise QueuingError("Queue full")
 		except KeyError:
 			self.logger.warn("No queue defined for {env}".format(
 				env=env))

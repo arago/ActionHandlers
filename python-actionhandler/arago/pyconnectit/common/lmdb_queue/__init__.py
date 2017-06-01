@@ -1,5 +1,5 @@
 import gevent
-from gevent.queue import Queue, Empty
+from gevent.queue import Queue, Empty, Full
 from lz4 import compress, uncompress
 import itertools
 import lmdb
@@ -114,19 +114,23 @@ class LMDBHashQueue(LMDBQueue):
 			pickle.dumps(item, protocol=4)
 		) if self.compression else pickle.dumps(item, protocol=4)
 		with self._sem:
-			with self._lmdb.begin(write=True) as txn:
-				if not txn.replace(
-						hash_key, data, db=self._hashes_db):
-					key =next(self._idx).to_bytes(
-						length=511, byteorder='big', signed=False)
-					self.logger.debug(
-						"Queuing new task with SERIAL {sn}".format(
-							sn=int.from_bytes(
-								key, byteorder='big', signed=False)))
-					txn.put(key, hash_key, append=True,
-						db=self._queue_db)
-				else:
-					self.logger.debug("Updating already queued task")
+			try:
+				with self._lmdb.begin(write=True) as txn:
+					if not txn.replace(
+							hash_key, data, db=self._hashes_db):
+						key =next(self._idx).to_bytes(
+							length=511, byteorder='big', signed=False)
+						self.logger.debug(
+							"Queuing new task with SERIAL {sn}".format(
+								sn=int.from_bytes(
+									key, byteorder='big', signed=False)))
+						txn.put(key, hash_key, append=True,
+							db=self._queue_db)
+					else:
+						self.logger.debug("Updating already queued task")
+			except lmdb.MapFullError:
+				self.logger.critical("Database file {path} reached maximum size!".format(path=self.path))
+				raise Full()
 
 class LMDBTaskQueue(LMDBHashQueue):
 
@@ -149,12 +153,6 @@ class LMDBTaskQueue(LMDBHashQueue):
 		def abort(self):
 			self._releasefunc(commit=False)
 
-	def release(self, txn, commit=False):
-		if commit:
-			txn.commit()
-		else:
-			txn.abort()
-		self._sem.release()
 
 	def _unpack(self, buf):
 		if self.compression:
@@ -162,10 +160,11 @@ class LMDBTaskQueue(LMDBHashQueue):
 		else:
 			return pickle.loads(buf)
 
-	def _walk(self, txn, op, max_items=1):
+	def _walk(self, txn, op, releasefunc, max_items=1):
+		if max_items == None:
+			max_items = self.qsize()
 		with txn.cursor(db=self._queue_db) as cursor:
 			if cursor.first():
-				releasefunc = partial(self.release, txn)
 				items = [
 					op(serial, hash_key)
 					for serial, hash_key
@@ -179,16 +178,30 @@ class LMDBTaskQueue(LMDBHashQueue):
 		def __get(serial, hash_key):
 			txn.delete(serial, db=self._queue_db)
 			payload=txn.pop(hash_key, db=self._hashes_db)
-			return self._unpack(payload)
+			if payload:
+				return self._unpack(payload)
+		def __release(commit=False):
+			if commit:
+				txn.commit()
+			else:
+				txn.abort()
+			self._sem.release()
 		self._sem.acquire()
 		txn = self._lmdb.begin(write=True)
-		return self._walk(txn, __get, max_items)
+		return self._walk(txn, __get, __release, max_items)
 
 	def _peek(self, max_items=1):
-		def __peek(serial, hash_key):
-			return self._unpack(txn.get(hash_key, db=self._hashes_db))
 		txn = self._lmdb.begin()
-		return self._walk(txn, __peek, max_items)
+		def __peek(serial, hash_key):
+			payload=txn.get(hash_key, db=self._hashes_db)
+			if payload:
+				return self._unpack(payload)
+		def __release(commit=False):
+			if commit:
+				txn.commit()
+			else:
+				txn.abort()
+		return self._walk(txn, __peek, __release, max_items)
 
 	def get(self, block=True, timeout=None, max_items=1):
 		if self.qsize():
@@ -209,6 +222,39 @@ class LMDBTaskQueue(LMDBHashQueue):
 		return self._Queue__get_or_peek(
 			partial(self._peek, max_items=max_items),
 			block, timeout)
+
+	def peek_by_hash(self, hash_key, block=False, timeout=None):
+		with self._lmdb.begin() as txn:
+			payload = txn.get(hash_key, default=None, db=self._hashes_db)
+			return self._unpack(payload) if payload else None
+
+	def unqueue_by_hash(self, hash_key, block=False, timeout=None):
+		def find_serial(hash_key):
+			with self._lmdb.begin() as txn:
+				with txn.cursor(db=self._queue_db) as cursor:
+					for serial, hash_key_in_db in cursor.iternext():
+						if hash_key == hash_key_in_db:
+							return serial
+		serial = find_serial(hash_key)
+		self._sem.acquire()
+		try:
+			with self._lmdb.begin(write=True) as txn:
+				result_del_hash_key = txn.delete(hash_key, db=self._hashes_db)
+				result_del_serial = txn.delete(serial, db=self._queue_db)
+				if not (result_del_hash_key and result_del_serial):
+					txn.abort()
+		except lmdb.BadValsizeError:
+			if result_del_hash_key:
+				self.logger.warn("Encountered a queue inconsistency!")
+		self._sem.release()
+		return result_del_hash_key and result_del_serial
+
+	def drop(self):
+		self._sem.acquire()
+		with self._lmdb.begin(write=True) as txn:
+			txn.drop(db=self._hashes_db, delete=False)
+			txn.drop(db=self._queue_db, delete=False)
+		self._sem.release()
 
 	def peek_nowait(self, max_items=1):
 		return self.peek(block=False, max_items=max_items)

@@ -7,6 +7,8 @@ from arago.pyconnectit.common.rest.plugins.restrict_environment import RestrictE
 from arago.pyconnectit.common.rest.plugins.json_translator import JSONTranslator
 from arago.pyconnectit.common.rest.plugins.auth.basic import BasicAuthentication
 from arago.pyconnectit.common.rest.plugins.store_deltas import StoreDeltas
+from arago.pyconnectit.common.lmdb_queue import Empty
+from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import QueuingError
 
 class RESTAPI(object):
 	def __init__(self, baseurl, endpoint, middleware=[]):
@@ -49,8 +51,16 @@ class Endpoint(object):
 	def on_post(self, req, resp, env):
 		self.logger.debug("New message for environment: {env}".format(
 			env=env))
-		for trigger in self.triggers:
-			trigger(req.context['doc'], env)
+		try:
+			for trigger in self.triggers:
+				trigger(req.context['doc'], env)
+		except QueuingError as e:
+			self.logger.critical(e)
+			raise falcon.HTTPInsufficientStorage(
+				title="Queue full",
+				description=("The status update could not be enqueued "
+							 "because the underlying on-disk-database "
+							 "has reached its maximum size"))
 		resp.status = falcon.HTTP_200
 
 	def on_get(self, req, resp, env):

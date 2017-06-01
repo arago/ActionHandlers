@@ -1,4 +1,6 @@
 import logging
+from arago.pyconnectit.common.delta_store import DeltaStoreFull
+import falcon
 
 class StoreDeltas(object):
 	def __init__(self, resources, delta_store_map):
@@ -14,6 +16,9 @@ class StoreDeltas(object):
 					req.context['doc']['mand']['eventId'],
 					req.context['doc']
 				)
+			except DeltaStoreFull as e:
+				self.logger.critical("DeltaStore for {env} can't store this delta: {err}".format(env=params['env'], err=e))
+				raise falcon.HTTPInsufficientStorage(title="DeltaStore full", description="")
 			except KeyError:
 				self.logger.warning(
 					"No DeltaStore defined for environment: {env}".format(
