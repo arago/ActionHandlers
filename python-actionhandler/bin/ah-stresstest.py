@@ -20,6 +20,7 @@ from gevent import monkey; monkey.patch_all(sys=True)
 from gevent.pool import Pool
 from docopt import docopt
 import sys, random
+import signal
 import zmq.green as zmq
 from docopt import docopt
 from arago.pyactionhandler.protobuf.ActionHandler_pb2 import ActionRequest, ActionResponse
@@ -41,7 +42,7 @@ def send(socket, i):
 	params = [
 		KeyValueMessage(
 			key="NodeID",
-			value=working_set[i] if type(working_set) is type(list()) else next(working_set)
+			value=working_set[i % len(working_set)] if type(working_set) is type(list()) else next(working_set)
 		)
 	]
 	for par, val in zip(args['PARAMETER'], args['VALUE']):
@@ -56,33 +57,46 @@ def send(socket, i):
 def receive(socket):
 	for i in range(total):
 		id1, svc_call, payload = socket.recv_multipart()
+		#print("Received Answer {n}".format(n=i+1))
 		x = int.from_bytes(id1, byteorder=sys.byteorder, signed=False)
 		del sent[x]
 
 args=docopt(__doc__)
 #print(args)
 
+
 total = int(args['-a'])
+nums=itertools.count(start=1, step=1)
 nodes=[args['-n'].format(num) for num in range(1, int(args['-m'])+1)]
 if args['-r']:
-	working_set = (random.choice(nodes) for n in range(int(args['-s'])))
+	working_set = (random.choice(nodes) for n in nums)
 else:
 	offset = int(args['-o'])
 	length = int(args['-s'])
 	working_set = nodes[offset:offset+length]
 	if offset+length > len(nodes):
 		working_set += nodes[0:offset+length-len(nodes)]
-nums=itertools.count(start=1, step=1)
 sent={}
 
+def sendall():
+	for i in range(total):
+		send(socket, i)
 
 socket = zmq.Context().socket(zmq.DEALER)
 socket.connect('tcp://localhost:7291')
 x = gevent.spawn(receive, socket)
-p = Pool(size=1)
-for i in range(total):
-	p.spawn(send, socket, i)
-p.join()
+y = gevent.spawn(sendall)
+
+
+def exit_gracefully():
+	print("kill")
+	x.kill()
+	y.kill()
+
+gevent.hub.signal(signal.SIGINT, exit_gracefully)
+gevent.hub.signal(signal.SIGTERM, exit_gracefully)
+
+y.join()
 x.join()
 for k in sent.keys():
 	print("Action {n} not returned".format(n=k))
