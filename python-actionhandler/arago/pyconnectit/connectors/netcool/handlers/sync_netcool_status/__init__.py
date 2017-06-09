@@ -109,8 +109,8 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 		if last_status == 'Resolved' and any([
 				True for item
 				in event_status_history
-				if item['value'] == 'Escalated']):
-			self.logger.verbose("Escalated followed by Resolved => "
+				if item['value'] in ['Escalated', 'Pending']]):
+			self.logger.verbose("Escalated or Waiting followed by Resolved => "
 								"Resolved_external in Engine, "
 								"Escalated in Netcool")
 			return (event_id, status_map['Escalated'])
