@@ -9,7 +9,7 @@ name = 'snow-actionhandler'
 
 distutils.core.setup(
 	name = name,
-	version = "0.3",
+	version = "0.4",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("ActionHandler for ServiceNow"),
@@ -24,6 +24,7 @@ Create incident tickets in ServiceNow
 		"License :: OSI Approved :: MIT License",
 	],
 	install_requires=['arago-pyactionhandler', "zeep"],
+	packages=['arago.pyactionhandler.plugins.issue_api'],
 	scripts=['bin/hiro-snow-actionhandler.py'],
 	data_files=[
 		(
