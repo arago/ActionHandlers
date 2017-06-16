@@ -64,12 +64,14 @@ class SyncHandler(object):
 	def shutdown(self):
 		gevent.kill(self.input_loop)
 		gevent.idle()
-		self.logger.info("Waiting for all responses to be delivered...")
-		self.response_queue.join()
 		self.worker_collection.shutdown_workers()
 		self.logger.info("Waiting for all workers to shutdown...")
 		while len(self.worker_collection.workers) > 0:
 			self.logger.debug("{num} worker(s) still active".format(num=len(self.worker_collection.workers)))
+			gevent.sleep(1)
+		self.logger.info("Waiting for all responses to be delivered...")
+		while self.response_queue.unfinished_tasks > 0:
+			self.logger.debug("{num} responses to be delivered".format(num=self.response_queue.unfinished_tasks))
 			gevent.sleep(1)
 		gevent.kill(self.output_loop)
 		self.logger.info("ActionHandler shut down, {num} actions processed".format(num=next(self.counter)-1))
@@ -108,7 +110,6 @@ class SyncHandler(object):
 		except GreenletExit as e:
 			## Block all further incoming messages
 			self.logger.info("Stopped handling requests")
-			self.worker_collection.task_queue.join()
 
 	def handle_responses(self):
 		try:
