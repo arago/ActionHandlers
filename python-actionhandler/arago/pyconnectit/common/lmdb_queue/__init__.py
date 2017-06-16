@@ -161,18 +161,15 @@ class LMDBTaskQueue(LMDBHashQueue):
 			return pickle.loads(buf)
 
 	def _walk(self, txn, op, releasefunc, max_items=1):
-		if max_items == None:
-			max_items = self.qsize()
-		with txn.cursor(db=self._queue_db) as cursor:
-			if cursor.first():
-				items = [
-					op(serial, hash_key)
-					for serial, hash_key
-					in next(chunks(cursor.iternext(), size=max_items))
-				]
-				return self.QueueTransaction(releasefunc, items)
-			else:
-				raise Empty()
+		items = [
+			op(serial, hash_key)
+			for serial, hash_key
+			in itertools.islice(cursor.iternext(), max_items)
+		]
+		if items:
+			return self.QueueTransaction(releasefunc, items)
+		else:
+			raise Empty()
 
 	def _get(self, max_items=1):
 		def __get(serial, hash_key):
