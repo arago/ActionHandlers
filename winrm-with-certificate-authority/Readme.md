@@ -221,10 +221,11 @@ A43489159A520F0D93D032CCAF37E7FE20A8B419  CN=Microsoft Root Authority, OU=Micros
 4EB6D578499B1CCF5F581EAD56BE3D9B6744A5E5  CN=VeriSign Class 3 Public Primary Certification Authority - G5, OU="(c) 2006 VeriSign, Inc. - For autho...
 ```
 
-Add a mapping to a local user account. Replace `<your_thumbprint>` by the actual thumbprint of your root certificate. You will be asked for the account name and the credentials. This should be an account with administrative permissions, i.e. a member of the Administrators group:
+Add a mapping to a local user account. Replace `<subject>` with the CN of your client certificate. If the above examples are followed, this will be "autopilot". 
+Replace `<your_thumbprint>` with the thumbprint of your root certificate. You will be asked for the account name and the credentials. This should be an account with administrative permissions, i.e. a member of the Administrators group:
 
 ```powershell
-New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject autopilot -URI * -Issuer <your_thumbprint> -Force
+New-Item -Path WSMan:\localhost\ClientCertificate -Credential (Get-Credential) -Subject <subject> -URI * -Issuer <your_thumbprint> -Force
 ```
 
 ### Enable certificate authentication
