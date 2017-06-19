@@ -21,7 +21,7 @@
             <xsd:element maxOccurs="1" minOccurs="0" name="reported_on" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="1" name="summary" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="1" name="details" type="xsd:string"/>
-            <xsd:element maxOccurs="1" minOccurs="0" name="netcool_id" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="1" name="netcool_id" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="1" name="arago_id" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="error_code" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="transaction_time" type="xsd:string"/>
@@ -33,7 +33,14 @@
                 </xsd:restriction>
               </xsd:simpleType>
             </xsd:element>
-            <xsd:element maxOccurs="1" minOccurs="0" name="operational_impact" type="xsd:string"/>
+            <xsd:element maxOccurs="1" minOccurs="0" name="impact">
+              <xsd:simpleType>
+                <xsd:restriction base="xsd:int">
+                  <xsd:minInclusive value="1"/>
+                  <xsd:maxInclusive value="4"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:element>
             <xsd:element maxOccurs="1" minOccurs="0" name="root_cause" type="xsd:string"/>
             <xsd:element maxOccurs="1" minOccurs="0" name="state">
               <xsd:simpleType>
