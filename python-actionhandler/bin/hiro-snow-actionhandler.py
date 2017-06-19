@@ -124,7 +124,19 @@ class SnowCreateIncidentAction(Action):
 
 	@property
 	def event_description(self):
-		return '; '.join(self.issue_variables['event_description'] or "No description given")
+		return '; '.join(self.issue_variables.get('event_description', ["No description given"]))
+
+	@property
+	def event_summary(self):
+		return '; '.join(self.issue_variables.get('event_summary', ["No summary given"]))
+
+	@property
+	def event_message_key(self):
+		return '; '.join(self.issue_variables.get('event_MessageKey', ["Unknown"]))
+
+	@staticmethod
+	def truncate(msg, max_len):
+		return (msg[:(max_len - 3)] + '...') if len(msg) > max_len else msg
 
 	def __call__(self):
 		try:
@@ -139,9 +151,14 @@ class SnowCreateIncidentAction(Action):
 					"__EVENT_DESCRIPTION__",
 					self.event_description
 				).replace(
+					"__EVENT_SUMMARY__",
+					self.event_summary
+				).replace(
 					"__NOW__",
 					self.now
 				)
+				args['summary'] = self.truncate(args['summary'], 255)
+				args['summary'] = args['summary'].replace("\n", "\\n")
 			except KeyError:
 				raise ActionHandlerError("Cannot create incident ticket for issue {iid}, "
 								  "no Summary given".format(iid=self.parameters['IID']))
@@ -162,9 +179,14 @@ class SnowCreateIncidentAction(Action):
 				"__NOW__",
 				self.now
 			)
+			args['details'] = self.truncate(args['details'], 4000)
+			args['details'] = args['details'].replace("\n", "\\n")
 			if 'NetcoolID' in self.parameters:
 				args['netcool_id']=self.id_transform.snow_out(
 					self.id_transform.arago_in(self.parameters['NetcoolID']))
+			elif 'event_id' in self.issue_variables:
+				args['netcool_id']=self.id_transform.snow_out(
+					self.id_transform.arago_in('; '.join(self.issue_variables['event_id'])))
 			args['arago_id']=self.parameters['IID']
 			args['notes'] = self.parameters.get('WorkNotes', "__ISSUE_LOG__").replace(
 				"__ISSUE_LOG__",
@@ -176,8 +198,13 @@ class SnowCreateIncidentAction(Action):
 				"__NOW__",
 				self.now
 			)
-			if 'ErrorCode' in self.parameters:
-				args['error_code']=self.parameters['ErrorCode']
+			args['notes'] = self.truncate(args['notes'], 4000)
+			args['notes'] = args['notes'].replace("\n", "\\n")
+			if 'Level' in self.parameters:
+				args['level'] = self.parameters['Level']
+			if 'Impact' in self.parameters:
+				args['impact'] = self.parameters['Impact']
+			args['error_code']=self.event_message_key
 			result = service.snow_service.execute(**args)
 			if result.UBSstatus == 'success' and result.inc_number:
 				self.success = True
@@ -264,8 +291,9 @@ class ActionHandlerDaemon(Daemon):
 			env: setup_soapclient(env, 'snow_')
 			for env in environments_config.sections()
 		}
-
-		issue_api = IssueAPI(actionhandler_config.get('IssueAPI', 'ZMQ_URL', "tcp://localhost:7284"))
+		issue_api_url = actionhandler_config.get('IssueAPI', 'ZMQ_URL', fallback="tcp://localhost:7284")
+		issue_api = IssueAPI(issue_api_url)
+		logger.info("Connected to IssueAPI on {url}".format(url=issue_api_url))
 
 		capabilities = {
 			"SnowCreateTicket":Capability(SnowCreateIncidentAction, service_map=snow_interfaces_map, issue_api=issue_api)
