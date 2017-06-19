@@ -147,6 +147,10 @@ class SnowCreateIncidentAction(Action):
 				raise ActionHandlerError("Cannot create incident ticket for issue {iid}, "
 								  "System not specified".format(iid=self.parameters['IID']))
 			try:
+				args['reported_on'] = self.parameters['ReportedOn']
+			except KeyError:
+				pass
+			try:
 				args['summary'] = self.parameters['Summary'].replace(
 					"__EVENT_DESCRIPTION__",
 					self.event_description
@@ -204,6 +208,8 @@ class SnowCreateIncidentAction(Action):
 				args['level'] = self.parameters['Level']
 			if 'Impact' in self.parameters:
 				args['impact'] = self.parameters['Impact']
+			if 'Urgency' in self.parameters:
+				args['urgency'] = self.parameters['Urgency']
 			args['error_code']=self.event_message_key
 			result = service.snow_service.execute(**args)
 			if result.UBSstatus == 'success' and result.inc_number:
