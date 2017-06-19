@@ -8,8 +8,11 @@
     - Name: System
       Description: INKA, SWCI, Support Unit or Support Unit ID for this MARSNode
       Default: ${INKA}
-    - Name: Details
+    - Name: ReportedOn
       Description: INKA, SWCI, Support Unit or Support Unit ID for this MARSNode
+      Default: ${INKA}
+    - Name: Details
+      Description: Incident details
       Default: __EVENT_DETAILS__
     - Name: Summary
       Description: Short description
@@ -23,6 +26,12 @@
     - Name: Urgency
       Description: Urgency of the incident
       Default: 1
+    - Name: Impact
+      Description: Impact of the incident
+      Default: 4
+    - Name: Level
+      Description: Assignment level of the incident
+      Default: 2
   Applicability:
   - Priotity: 100
     ModelFilter:
