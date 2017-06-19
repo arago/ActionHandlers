@@ -110,7 +110,6 @@ class SnowCreateIncidentAction(Action):
 	@property
 	def event_details(self):
 		variables=self.issue_variables
-		print(variables)
 		return "Agent={agent}, AlertGroup={alertgroup}, AlertKey={alertkey}, Class={ev_class}, Domain={ev_domain}, Location={location}, OwnerGID={ownergid}, Subclass={subclass}".format(
 			agent="",
 			alertgroup=','.join(variables.get('event_AlertGroup', [])),
@@ -204,12 +203,9 @@ class SnowCreateIncidentAction(Action):
 			)
 			args['notes'] = self.truncate(args['notes'], 4000)
 			args['notes'] = args['notes'].replace("\n", "\\n")
-			if 'Level' in self.parameters:
-				args['level'] = self.parameters['Level']
-			if 'Impact' in self.parameters:
-				args['impact'] = self.parameters['Impact']
-			if 'Urgency' in self.parameters:
-				args['urgency'] = self.parameters['Urgency']
+			args['level'] = self.parameters['Level'] if 'Level' in self.parameters else "2"
+			args['impact'] = self.parameters['Impact'] if 'Impact' in self.parameters else "4"
+			args['urgency'] = self.parameters['Urgency'] if 'Urgency' in self.parameters else "1"
 			args['error_code']=self.event_message_key
 			result = service.snow_service.execute(**args)
 			if result.UBSstatus == 'success' and result.inc_number:
