@@ -8,30 +8,21 @@
     - Name: System
       Description: INKA, SWCI, Support Unit or Support Unit ID for this MARSNode
       Default: ${INKA}
+    - Name: Details
+      Description: INKA, SWCI, Support Unit or Support Unit ID for this MARSNode
+      Default: __EVENT_DETAILS__
     - Name: Summary
       Description: Short description
-      Mandatory: true
+      Default: __EVENT_SUMMARY__
     - Name: NetcoolID
       Description: ID of the initial Event in Netcool
-      Mandatory: true
+      Mandatory: false
     - Name: WorkNotes
       Description: Work notes to attach to the ticket
       Default: __ISSUE_LOG__
-    - Name: Severity
-      Description: Severity of the incident
-      Mandatory: false
-    - Name: FirstOccurrence
-      Description: First occurrence of the Netcool event
-      Mandatory: false
-    - Name: Location
-      Description: Location of the MARSNode
-      Mandatory: false
-    - Name: OwnerGID
-      Description: GID of the Owner of the MARSNode
-      Mandatory: false
-    - Name: Subclass
-      Description: Subclass of the MARSNode
-      Mandatory: false
+    - Name: Urgency
+      Description: Urgency of the incident
+      Default: 1
   Applicability:
   - Priotity: 100
     ModelFilter:
