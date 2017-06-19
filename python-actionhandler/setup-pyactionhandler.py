@@ -9,7 +9,7 @@ name = 'arago-pyactionhandler'
 
 distutils.core.setup(
 	name = "arago-pyactionhandler",
-	version = "2.2",
+	version = "2.4",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("Python module for Arago HIRO ActionHandlers"),
@@ -33,7 +33,7 @@ kind of command line or API, e.g. SQL.
 			  'arago.pyactionhandler.protobuf'
 	],
 	install_requires=['gevent', 'docopt', 'zmq', 'protobuf'],
-	scripts=['bin/hiro-counting-rhyme-actionhandler.py', 'bin/ah-client.py', 'bin/create-zmq-keypair.sh', 'bin/ah-stresstest.py'],
+	scripts=['bin/hiro-counting-rhyme-actionhandler.py', 'bin/ah-client.py', 'bin/create-zmq-keypair.sh'],
 	data_files=[
 		(
 			'/opt/autopilot/conf/external_actionhandlers/',
