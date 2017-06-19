@@ -265,7 +265,7 @@ class ActionHandlerDaemon(Daemon):
 			for env in environments_config.sections()
 		}
 
-		issue_api = IssueAPI(actionhandler_config.get('IssueAPI', 'ZMQ_URL'))
+		issue_api = IssueAPI(actionhandler_config.get('IssueAPI', 'ZMQ_URL', "tcp://localhost:7284"))
 
 		capabilities = {
 			"SnowCreateTicket":Capability(SnowCreateIncidentAction, service_map=snow_interfaces_map, issue_api=issue_api)
