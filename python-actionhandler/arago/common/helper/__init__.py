@@ -29,6 +29,14 @@ def decode_rpc_call(message):
 		raise DecodeRPCError("Message does not contain a method call")
 	return service, method
 
+
+def encode_rpc_call(*args):
+	rpc_call = b''
+	for num in range(len(args)):
+		rpc_call += (((num+1 << 3) + 2).to_bytes(length=1, byteorder='big', signed=False) + len(args[num]).to_bytes(length=1, byteorder='big', signed=False) + args[num].encode("utf-8"))
+	rpc_call += ((num+1 << 3) + 3).to_bytes(length=2, byteorder='big', signed=False)
+	return rpc_call
+
 def addBaseURL(function):
 	def wrapper(self, *args, **kwargs):
 		if args:

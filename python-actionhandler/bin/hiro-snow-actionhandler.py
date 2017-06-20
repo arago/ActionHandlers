@@ -17,6 +17,8 @@ from arago.common.configparser import ConfigParser
 from configparser import NoSectionError, NoOptionError
 from arago.common.daemon import daemon as Daemon
 from arago.pyactionhandler.action import Action
+from arago.pyactionhandler.plugins.issue_api import IssueAPI
+import datetime
 
 import zeep, requests, ujson as json
 from lxml import etree
@@ -64,61 +66,76 @@ class SOAPLogger(zeep.Plugin):
 		return envelope, http_headers
 
 class SnowCreateIncidentAction(Action):
-	def __init__(self, num, node, zmq_info, timeout, parameters, service_map):
+	def __init__(self, num, node, zmq_info, timeout, parameters, service_map, issue_api):
 		super().__init__(num, node, zmq_info, timeout, parameters)
 		self.service_map = service_map
+		self.issue_api = issue_api
 		self.id_transform = IDTransformator()
 
 	def __str__(self):
 		return "ServiceNow create incident action on node {node}".format(
 			node=self.node)
 
-	def get_issue_log(self):
-		#elements = ['Log', 'VarDelete']
-		elements = ['Log']
-		timestamp_format = '%Y-%m-%d %H:%M:%S'
-		element_format = "[{timestamp}] {name}: {message}"
-		elements = ['Log', 'VarDelete']
-		ns = "{https://graphit.co/schemas/v2/IssueSchema}"
+	@property
+	def issue_variables(self):
 		try:
-			xml = sp.check_output(["aae_getissue", "-u", "tcp://localhost:7284", "-x",  self.parameters['IID']], universal_newlines=True)
-			results = [element_format.format(
-				timestamp=datetime.datetime.fromtimestamp(
-					int(entry.attrib['Timestamp'])/1000
-				).strftime(timestamp_format),
-				name=entry.attrib['ElementName'].upper(),
-				message=entry.attrib['ElementMessage'])
-					   for entry in et.fromstring(xml).findall(
-							   "./{ns}IssueHistory/{ns}HistoryEntry".format(ns=ns))
-					   if entry.attrib['ElementName'] in elements]
-			return "\n".join(results)
-		except FileNotFoundError:
-			self.logger.error("Could not get Issue history for {uuid}: aae_getissue not found!".format(
-				uuid=self.parameters['IID']))
-			self.error_output += "Could not get Issue history for {uuid}\n".format(
-				uuid=self.parameters['IID'])
-			return
-		except sp.CalledProcessError as e:
-			self.logger.error(("Could not get Issue history for {uuid}: '{cmd}' "
-								  "returned non-zero exit status {rc}").format(
-									  uuid=self.parameters['IID'],
-									  cmd = " ".join(e.cmd),
-									  rc = e.returncode))
-			self.error_output += "Could not get Issue history for {uuid}\n".format(
-				uuid=self.parameters['IID'])
-			return
-		except et.ParseError as e:
-			self.logger.error("Could not get Issue history for {uuid}: {err}".format(
-				uuid=self.parameters['IID'], err=e))
-			self.error_output += "Could not get Issue history for {uuid}.\n".format(
-				uuid=self.parameters['IID'])
-			return
-		except Exception as e:
-			self.logger.error("Could not get Issue history for {uuid}: {err}".format(
-				uuid=self.parameters['IID'], err=e))
-			self.error_output += "Could not get Issue history for {uuid}.\n".format(
-				uuid=self.parameters['IID'])
-			return
+			return self._issue_variables
+		except AttributeError:
+			self._issue_variables = self.issue_api.get_issue_variables(self.parameters['IID'])
+			return self._issue_variables
+
+	@property
+	def issue_history(self):
+		try:
+			return self._issue_history
+		except AttributeError:
+			self._issue_history = self.issue_api.get_issue_history(self.parameters['IID'])
+			return self._issue_history
+
+	@property
+	def issue_log(self):
+		try:
+			return self._issue_log
+		except AttributeError:
+			self._issue_log = [entry for entry in self.issue_history if entry.element_name=='Log']
+			return self._issue_log
+
+	def get_formatted_issue_log(self, entry_fmt="[{date}] {elem}: {msg}", date_fmt="%Y-%m-%d %H:%M:%S"):
+		return [entry_fmt.format(date=datetime.datetime.fromtimestamp(int(entry.timestamp)//1000).strftime(date_fmt), elem=entry.element_name, msg=entry.element_message) for entry in self.issue_log]
+
+	@property
+	def now(self):
+		return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+	@property
+	def event_details(self):
+		variables=self.issue_variables
+		return "Agent={agent}, AlertGroup={alertgroup}, AlertKey={alertkey}, Class={ev_class}, Domain={ev_domain}, Location={location}, OwnerGID={ownergid}, Subclass={subclass}".format(
+			agent="",
+			alertgroup=','.join(variables.get('event_AlertGroup', [])),
+			alertkey=','.join(variables.get('event_name', [])),
+			ev_class=','.join(variables.get('event_ObjectClass', [])),
+			ev_domain="",
+			location="",
+			ownergid="",
+			subclass=','.join(variables.get('event_resource', [])),
+			)
+
+	@property
+	def event_description(self):
+		return '; '.join(self.issue_variables.get('event_description', ["No description given"]))
+
+	@property
+	def event_summary(self):
+		return '; '.join(self.issue_variables.get('event_summary', ["No summary given"]))
+
+	@property
+	def event_message_key(self):
+		return '; '.join(self.issue_variables.get('event_MessageKey', ["Unknown"]))
+
+	@staticmethod
+	def truncate(msg, max_len):
+		return (msg[:(max_len - 3)] + '...') if len(msg) > max_len else msg
 
 	def __call__(self):
 		try:
@@ -129,7 +146,22 @@ class SnowCreateIncidentAction(Action):
 				raise ActionHandlerError("Cannot create incident ticket for issue {iid}, "
 								  "System not specified".format(iid=self.parameters['IID']))
 			try:
-				args['summary'] = self.parameters['Summary']
+				args['reported_on'] = self.parameters['ReportedOn']
+			except KeyError:
+				pass
+			try:
+				args['summary'] = self.parameters['Summary'].replace(
+					"__EVENT_DESCRIPTION__",
+					self.event_description
+				).replace(
+					"__EVENT_SUMMARY__",
+					self.event_summary
+				).replace(
+					"__NOW__",
+					self.now
+				)
+				args['summary'] = self.truncate(args['summary'], 255)
+				args['summary'] = args['summary'].replace("\n", "\\n")
 			except KeyError:
 				raise ActionHandlerError("Cannot create incident ticket for issue {iid}, "
 								  "no Summary given".format(iid=self.parameters['IID']))
@@ -143,25 +175,38 @@ class SnowCreateIncidentAction(Action):
 				raise ActionHandlerError(("Unknown environment '{env}': Check your "
 										  "snow-actionhandler-environments.conf").format(
 											  env=self.parameters['Environment']))
-			args['details']="Severity={sev}, Location={loc}, OwnerGID={gid}, Subclass={subc}, FirstOccurrence={fo}, LastOccurrence={lo}, Tally={t}".format(
-				sev=self.parameters['Severity'] if 'Severity' in self.parameters else "",
-				loc=self.parameters['Location'] if 'Location' in self.parameters else "", # Stamford ???
-				gid=self.parameters['OwnerGID'] if 'OwnerGID' in self.parameters else "", # 1468 ???
-				subc=self.parameters['Subclass'] if 'Subclass' in self.parameters else "", # "UNIX" ???
-				fo=self.parameters['FirstOccurrence'] if 'FirstOccurrence' in self.parameters else "",
-				lo="", t="")
+			args['details'] = self.parameters.get('Details', "No details given").replace(
+				"__EVENT_DETAILS__",
+				self.event_details
+			).replace(
+				"__NOW__",
+				self.now
+			)
+			args['details'] = self.truncate(args['details'], 4000)
+			args['details'] = args['details'].replace("\n", "\\n")
 			if 'NetcoolID' in self.parameters:
-				args['netcool_id']=self.id_transform.snow_out(self.id_transform.arago_in(self.parameters['NetcoolID']))
+				args['netcool_id']=self.id_transform.snow_out(
+					self.id_transform.arago_in(self.parameters['NetcoolID']))
+			elif 'event_id' in self.issue_variables:
+				args['netcool_id']=self.id_transform.snow_out(
+					self.id_transform.arago_in('; '.join(self.issue_variables['event_id'])))
 			args['arago_id']=self.parameters['IID']
-			if 'WorkNotes' in self.parameters:
-				if self.parameters['WorkNotes'] == '__ISSUE_LOG__':
-					args['notes'] = self.get_issue_log()
-				elif self.parameters['WorkNotes'] == '__NONE__':
-					args['notes'] = None
-				else:
-					args['notes']=self.parameters['WorkNotes']
-			if 'ErrorCode' in self.parameters:
-				args['error_code']=self.parameters['ErrorCode']
+			args['notes'] = self.parameters.get('WorkNotes', "__ISSUE_LOG__").replace(
+				"__ISSUE_LOG__",
+				"\n".join(self.get_formatted_issue_log())
+			).replace(
+				"__EVENT_DESCRIPTION__",
+				self.event_description
+			).replace(
+				"__NOW__",
+				self.now
+			)
+			args['notes'] = self.truncate(args['notes'], 4000)
+			args['notes'] = args['notes'].replace("\n", "\\n")
+			args['level'] = self.parameters['Level'] if 'Level' in self.parameters else "2"
+			args['impact'] = self.parameters['Impact'] if 'Impact' in self.parameters else "4"
+			args['urgency'] = self.parameters['Urgency'] if 'Urgency' in self.parameters else "1"
+			args['error_code']=self.event_message_key
 			result = service.snow_service.execute(**args)
 			if result.UBSstatus == 'success' and result.inc_number:
 				self.success = True
@@ -248,9 +293,12 @@ class ActionHandlerDaemon(Daemon):
 			env: setup_soapclient(env, 'snow_')
 			for env in environments_config.sections()
 		}
+		issue_api_url = actionhandler_config.get('IssueAPI', 'ZMQ_URL', fallback="tcp://localhost:7284")
+		issue_api = IssueAPI(issue_api_url)
+		logger.info("Connected to IssueAPI on {url}".format(url=issue_api_url))
 
 		capabilities = {
-			"SnowCreateTicket":Capability(SnowCreateIncidentAction, service_map=snow_interfaces_map)
+			"SnowCreateTicket":Capability(SnowCreateIncidentAction, service_map=snow_interfaces_map, issue_api=issue_api)
 		}
 
 		worker_collection = WorkerCollection(
