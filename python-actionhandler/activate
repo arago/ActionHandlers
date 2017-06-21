@@ -1,13 +1,20 @@
 [[ -L /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago ]] || sudo ln -sf "$(pwd)/arago" /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago
 [[ -L /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter ]] || sudo ln -sf "$(pwd)/share/connectit-netcool-adapter" /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter
-[[ -L /opt/autopilot/connectit/conf ]] || sudo mkdir -p /opt/autopilot/connectit && sudo ln -sf "$(pwd)/config/netcool-adapter" /opt/autopilot/connectit/conf
-[[ -L /opt/autopilot/conf/external_actionhandlers ]] || sudo mkdir -p /opt/autopilot/conf && sudo ln -sf "$(pwd)/config/external_actionhandlers" /opt/autopilot/conf/
+
+[[ -d /opt/autopilot/conf ]] || sudo mkdir -p /opt/autopilot/conf
+[[ -d /opt/autopilot/connectit ]] || sudo mkdir -p /opt/autopilot/connectit
+
+[[ -e /opt/autopilot/connectit/conf ]] || sudo ln -sf "$(pwd)/config/netcool-adapter" /opt/autopilot/connectit/conf
+[[ -e /opt/autopilot/conf/external_actionhandlers ]] || sudo mkdir -p /opt/autopilot/conf && sudo ln -sf "$(pwd)/config/external_actionhandlers" /opt/autopilot/conf/
+
 
 scl enable hiro_integration "bash --rcfile <(cat <<END-of-rcfile
 . ~/.bashrc
 export PS1=\"\\[\\e[31m\\]\\u\\[\\e[m\\]\\[\\e[31m\\]@\\[\\e[m\\]\\[\\e[31m\\]\\h[hiro_int]\\[\\e[m\\]:\\W \\$ \"
 END-of-rcfile)"
 
+
 [[ -L /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago ]] && sudo rm /opt/rh/hiro_integration/root/usr/lib/python3.4/site-packages/arago
 [[ -L /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter ]] && sudo rm /opt/rh/hiro_integration/root/usr/share/connectit-netcool-adapter
 [[ -L /opt/autopilot/connectit/conf ]] && sudo rm /opt/autopilot/connectit/conf
+[[ -L /opt/autopilot/conf/external_actionhandlers ]] && sudo rm /opt/autopilot/conf/external_actionhandlers
