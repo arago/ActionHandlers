@@ -7,7 +7,7 @@ import distutils.core
 
 distutils.core.setup(
 	name = "arago-pyconnectit-common-rest-plugins-base",
-	version = "2.2",
+	version = "2.3",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("pyconnectit REST interface base plugins"),
