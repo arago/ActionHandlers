@@ -27,7 +27,6 @@
 						"New",
 						"Assigned",
 						"Pending",
-						"Resolved",
 						"Escalated",
 						"Closed"
 					]

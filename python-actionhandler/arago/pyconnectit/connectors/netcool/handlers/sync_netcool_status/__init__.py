@@ -85,20 +85,24 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 			delta_store_map={},
 			queue_map={},
 			max_items_map={},
-			interval_map={}):
+			interval_map={},
+			override_status=None,
+			enable_sync=True):
 		super().__init__(
 			soap_interfaces_map,
 			status_map_map=status_map_map)
 		self.delta_store_map=delta_store_map
 		self.queue_map=queue_map
-		self.background_jobs=[
-			gevent.spawn(
-				self.sync, env,
-				interface,
-				max_items=max_items_map[env],
-				interval=interval_map[env])
-			for env, interface
-			in soap_interfaces_map.items()]
+		self.override_status=override_status
+		if enable_sync:
+			self.background_jobs=[
+				gevent.spawn(
+					self.sync, env,
+					interface,
+					max_items=max_items_map[env],
+					interval=interval_map[env])
+				for env, interface
+				in soap_interfaces_map.items()]
 
 	def calc_netcool_status(
 			self,
@@ -106,16 +110,7 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 			event_status_history,
 			status_map):
 		last_status = event_status_history.pop()['value']
-		if last_status == 'Resolved' and any([
-				True for item
-				in event_status_history
-				if item['value'] in ['Escalated', 'Pending']]):
-			self.logger.verbose("Escalated or Waiting followed by Resolved => "
-								"Resolved_external in Engine, "
-								"Escalated in Netcool")
-			return (event_id, status_map['Escalated'])
-		else:
-			return (event_id, status_map[last_status])
+		return (event_id, status_map[last_status])
 
 	def call_netcool(self, env, netcool_status_string):
 		job = gevent.spawn(
@@ -207,6 +202,8 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 			event_id = data['mand']['eventId']
 			event = self.delta_store_map[env].get_merged(
 				event_id)
+			if self.override_status:
+				event['free']['eventNormalizedStatus'][-1]['value']=self.override_status
 			status_update = StatusUpdate(event_id, event)
 			self.queue_map[env].put(status_update)
 		except Full:

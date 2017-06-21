@@ -1,0 +1,73 @@
+{
+	"type": "object",
+	"properties": {
+		"mand": {
+			"type":"object",
+			"properties": {
+				"eventId": {"type":"string"},
+				"eventName": {"type":"string"},
+				"instance": {"type":"string"},
+				"sourceId": {"type":"string"},
+				"description": {"type":"string"}
+			},
+			"required": [
+				"eventId",
+				"eventName",
+				"instance",
+				"sourceId",
+				"description"
+			]
+		},
+		"opt": {
+			"type":"object",
+			"properties": {
+				"comment": {
+					"type": "array",
+					"minItems":1,
+					"not": {
+						"items": {
+							"not": {
+								"type":"object",
+								"properties": {
+									"sdfType":{
+										"type":"string",
+										"enum":["COMMENT"]
+									},
+									"sdfVersion": {
+										"type":"string",
+										"enum":["1.0"]
+									},
+									"mand": {
+										"type":"object",
+										"properties": {
+											"id": {"type":"string"}
+										},
+										"required":["id"]
+									},
+									"opt": {
+										"type":"object",
+										"properties": {
+											"content": { "type":"string", "enum":["issue created"] },
+											"timestamp": { "type":"string" }
+										},
+										"required":["content", "timestamp"]
+									}
+								},
+								"required":[
+									"sdfType",
+									"sdfVersion",
+									"mand",
+									"opt"
+								]
+							}
+						}
+					}
+				}
+			},
+			"required": ["comment"]
+		},
+		"sdfType": {"type":"string", "enum":["EVENT"]},
+		"sdfVersion": {"type":"string", "enum":["1.0"]}
+	},
+	"required": ["mand", "opt", "sdfType", "sdfVersion"]
+}

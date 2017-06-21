@@ -208,6 +208,39 @@ class ConnectitDaemon(Daemon):
 			interval_map=interval_map
 		)
 
+		set_issue_created_status_netcool_handler = BatchSyncNetcoolStatus(
+			netcool_interfaces_map,
+			status_map_map=status_map_map,
+			delta_store_map=delta_store_map,
+			queue_map=netcool_queue_map,
+			max_items_map=max_items_map,
+			interval_map=interval_map,
+			override_status="Issue_created",
+			enable_sync=False
+		)
+
+		set_resolved_status_netcool_handler = BatchSyncNetcoolStatus(
+			netcool_interfaces_map,
+			status_map_map=status_map_map,
+			delta_store_map=delta_store_map,
+			queue_map=netcool_queue_map,
+			max_items_map=max_items_map,
+			interval_map=interval_map,
+			override_status="Resolved",
+			enable_sync=False
+		)
+
+		set_resolved_external_status_netcool_handler = BatchSyncNetcoolStatus(
+			netcool_interfaces_map,
+			status_map_map=status_map_map,
+			delta_store_map=delta_store_map,
+			queue_map=netcool_queue_map,
+			max_items_map=max_items_map,
+			interval_map=interval_map,
+			override_status="Resolved_external",
+			enable_sync=False
+		)
+
 		open_snow_ticket = BatchOpenSnowTicket(
 			snow_interfaces_map,
 			delta_store_map=delta_store_map,
@@ -217,11 +250,17 @@ class ConnectitDaemon(Daemon):
 		status_change_schema = open(os.path.join(share_dir, "schemas/event-status-change.json"))
 		comment_added_schema = open(os.path.join(share_dir, "schemas/event-comment-added.json"))
 		status_ejected_schema = open(os.path.join(share_dir, "schemas/event-status-ejected.json"))
+		issue_created_schema = open(os.path.join(share_dir, "schemas/event-comment-issue-created.json"))
+		resolved_external_schema = open(os.path.join(share_dir, "schemas/event-resolved-external.json"))
+		resolved_schema = open(os.path.join(share_dir, "schemas/event-resolved.json"))
 
 		triggers= [
 			FastTrigger(status_change_schema, [log_status_handler, sync_status_netcool_handler]),
 			FastTrigger(status_ejected_schema, [open_snow_ticket]),
-			FastTrigger(comment_added_schema, [log_comment_handler])
+			FastTrigger(comment_added_schema, [log_comment_handler]),
+			FastTrigger(issue_created_schema, [set_issue_created_status_netcool_handler]),
+			FastTrigger(resolved_external_schema, [set_resolved_external_status_netcool_handler]),
+			FastTrigger(resolved_schema, [set_resolved_status_netcool_handler])
 		]
 
 		# Setup HTTP server for REST API
