@@ -1,0 +1,44 @@
+import "CommonTypes.proto";
+
+option cc_generic_services = true;
+option java_package = "de.arago.autopilot.client.zmq.protobuf";
+option java_generic_services = true;
+option py_generic_services = true;
+
+message IssueHistoryEntryMessage {
+    required int64 timestamp = 1;
+    required string ki_id = 2;
+    required string node_id = 3;
+    required string element_name = 4;
+    required string element_message = 5;
+    required int32 log_level = 6;
+    required string issueid = 7;
+}
+
+message IssueDescriptorMessage {
+    required string model_nodeid = 1;
+    required string state = 2;
+    required string last_message = 3;
+    required string customer = 4;
+    required BaseObjectMessage base = 5;
+};
+
+message IssueTextMessage {
+    required string id = 1;
+    required string text = 2;
+}
+
+service IssueAPI_Service {
+    rpc List(StringMessage) returns (BooleanMessage);
+    rpc Read(StringMessage) returns (StringOrErrorResponse);
+    rpc Write(StringMessage) returns (StringOrErrorResponse);
+    rpc Resolve(StringMessage) returns (StringResponse);
+    rpc GetAttribute(GetAttributeRequest) returns (StringResponse);
+    rpc SetAttribute(SetAttributeRequest) returns (BooleanMessage);
+    rpc AddHistoryEntry(IssueHistoryEntryMessage) returns (BooleanMessage);
+    rpc GetHistory(StringMessage) returns (StringResponse);
+}
+
+service IssueListener_Service {
+    rpc HistoryEntryAdded(IssueHistoryEntryMessage) returns (EmptyMessage);
+}
