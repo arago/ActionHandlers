@@ -36,3 +36,4 @@ flycheck_*.el
 *.whl
 
 ayehu-remote-client.py
+scribbles/
