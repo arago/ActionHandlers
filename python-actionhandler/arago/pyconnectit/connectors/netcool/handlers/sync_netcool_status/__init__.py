@@ -77,32 +77,26 @@ class QueuingError(Exception):
 	def __init__(self, message):
 		Exception.__init__(self, message)
 
-class BatchSyncNetcoolStatus(SyncNetcoolStatus):
+class NetcoolBatchSyncer(SyncNetcoolStatus):
 	def __init__(
 			self,
 			soap_interfaces_map,
 			status_map_map={},
-			delta_store_map={},
 			queue_map={},
 			max_items_map={},
-			interval_map={},
-			override_status=None,
-			enable_sync=True):
+			interval_map={}):
 		super().__init__(
 			soap_interfaces_map,
 			status_map_map=status_map_map)
-		self.delta_store_map=delta_store_map
 		self.queue_map=queue_map
-		self.override_status=override_status
-		if enable_sync:
-			self.background_jobs=[
-				gevent.spawn(
-					self.sync, env,
-					interface,
-					max_items=max_items_map[env],
-					interval=interval_map[env])
-				for env, interface
-				in soap_interfaces_map.items()]
+		self.background_jobs=[
+			gevent.spawn(
+				self.sync, env,
+				interface,
+				max_items=max_items_map[env],
+				interval=interval_map[env])
+			for env, interface
+			in soap_interfaces_map.items()]
 
 	def calc_netcool_status(
 			self,
@@ -197,13 +191,16 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 						stats=self.queue_map[env].stats()))
 				gevent.sleep(interval)
 
+class ForwardStatus(object):
+	def __init__(self, delta_store_map={}, queue_map={}):
+		self.delta_store_map=delta_store_map
+		self.queue_map=queue_map
+
 	def __call__(self, data, env):
 		try:
 			event_id = data['mand']['eventId']
 			event = self.delta_store_map[env].get_merged(
 				event_id)
-			if self.override_status:
-				event['free']['eventNormalizedStatus'][-1]['value']=self.override_status
 			status_update = StatusUpdate(event_id, event)
 			self.queue_map[env].put(status_update)
 		except Full:
@@ -213,4 +210,27 @@ class BatchSyncNetcoolStatus(SyncNetcoolStatus):
 				env=env))
 
 	def __str__(self):
-		return "BatchSyncNetcoolStatus"
+		return "ForwardStatus"
+
+class SetStatus(object):
+	def __init__(self, status, delta_store_map={}, queue_map={}):
+		self.status=status
+		self.delta_store_map=delta_store_map
+		self.queue_map=queue_map
+
+	def __call__(self, data, env):
+		try:
+			event_id = data['mand']['eventId']
+			event = self.delta_store_map[env].get_merged(
+				event_id)
+			event['free']['eventNormalizedStatus'][-1]['value']=self.status
+			status_update = StatusUpdate(event_id, event)
+			self.queue_map[env].put(status_update)
+		except Full:
+			raise QueuingError("Queue full")
+		except KeyError:
+			self.logger.warn("No queue defined for {env}".format(
+				env=env))
+
+	def __str__(self):
+		return "SetStatus"

@@ -25,7 +25,7 @@ from arago.pyconnectit.common.rest import Events, Queue, QueueObj
 from arago.pyconnectit.connectors.common.trigger import FastTrigger
 from arago.pyconnectit.connectors.common.handlers.log_status_change import LogStatusChange
 from arago.pyconnectit.connectors.common.handlers.log_comments import LogComments
-from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import BatchSyncNetcoolStatus
+from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import NetcoolBatchSyncer, SetStatus, ForwardStatus
 from arago.pyconnectit.connectors.snow.handlers.open_snow_ticket import BatchOpenSnowTicket
 from arago.pyconnectit.common.delta_store import DeltaStore
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue
@@ -197,46 +197,35 @@ class ConnectitDaemon(Daemon):
 		log_status_handler = LogStatusChange()
 		log_comment_handler = LogComments()
 
-		sync_status_netcool_handler = BatchSyncNetcoolStatus(
+		netcool_syncer = NetcoolBatchSyncer(
 			netcool_interfaces_map,
 			status_map_map=status_map_map,
-			delta_store_map=delta_store_map,
 			queue_map=netcool_queue_map,
 			max_items_map=max_items_map,
 			interval_map=interval_map
 		)
 
-		set_issue_created_status_netcool_handler = BatchSyncNetcoolStatus(
-			netcool_interfaces_map,
-			status_map_map=status_map_map,
+		forward_status_netcool_handler = ForwardStatus(
 			delta_store_map=delta_store_map,
-			queue_map=netcool_queue_map,
-			max_items_map=max_items_map,
-			interval_map=interval_map,
-			override_status="Issue_created",
-			enable_sync=False
+			queue_map=netcool_queue_map
 		)
 
-		set_resolved_status_netcool_handler = BatchSyncNetcoolStatus(
-			netcool_interfaces_map,
-			status_map_map=status_map_map,
+		set_issue_created_status_netcool_handler = SetStatus(
+			"Issue_created",
 			delta_store_map=delta_store_map,
-			queue_map=netcool_queue_map,
-			max_items_map=max_items_map,
-			interval_map=interval_map,
-			override_status="Resolved",
-			enable_sync=False
+			queue_map=netcool_queue_map
 		)
 
-		set_resolved_external_status_netcool_handler = BatchSyncNetcoolStatus(
-			netcool_interfaces_map,
-			status_map_map=status_map_map,
+		set_resolved_status_netcool_handler = SetStatus(
+			"Resolved",
 			delta_store_map=delta_store_map,
-			queue_map=netcool_queue_map,
-			max_items_map=max_items_map,
-			interval_map=interval_map,
-			override_status="Resolved_external",
-			enable_sync=False
+			queue_map=netcool_queue_map
+		)
+
+		set_resolved_external_status_netcool_handler = SetStatus(
+			"Resolved_external",
+			delta_store_map=delta_store_map,
+			queue_map=netcool_queue_map
 		)
 
 		open_snow_ticket = BatchOpenSnowTicket(
@@ -253,7 +242,7 @@ class ConnectitDaemon(Daemon):
 		resolved_schema = open(os.path.join(share_dir, "schemas/event-resolved.json"))
 
 		triggers= [
-			FastTrigger(status_change_schema, [log_status_handler, sync_status_netcool_handler]),
+			FastTrigger(status_change_schema, [log_status_handler, forward_status_netcool_handler]),
 			FastTrigger(status_ejected_schema, [open_snow_ticket]),
 			FastTrigger(comment_added_schema, [log_comment_handler]),
 			FastTrigger(issue_created_schema, [set_issue_created_status_netcool_handler]),
