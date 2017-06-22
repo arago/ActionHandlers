@@ -5,7 +5,8 @@ Usage:
   connectit-netcool-adapter [options] (start|stop|restart)
 
 Options:
-  --debug            do not run as daemon and log to stderr
+  --nofork           do not fork into background
+  --level=LEVEL      loglevel [default: DEBUG]
   --pidfile=PIDFILE  Specify pid file [default: /var/run/{progname}.pid]
   -h --help          Show this help screen
 """
@@ -70,10 +71,7 @@ class ConnectitDaemon(Daemon):
 			fallback=os.path.join(
 				'/var/log/autopilot/connectit/',
 				'netcool-adapter.log'))
-		debuglevel = getattr(
-			logger, adapter_config.get(
-				'Logging', 'debuglevel',
-				fallback='TRACE'))
+		debuglevel = self.debuglevel
 		logger.setLevel(level)
 
 		logfile_formatter = logging.Formatter(
@@ -89,7 +87,7 @@ class ConnectitDaemon(Daemon):
 		logger.addHandler(logfile_handler)
 
 		# Setup debug logging
-		if self.debug:
+		if self.debug or self.nofork:
 			stream_handler = logging.StreamHandler()
 			stream_handler.setLevel(debuglevel)
 			debug_formatter = logging.Formatter(
@@ -323,7 +321,7 @@ class ConnectitDaemon(Daemon):
 
 if __name__ == "__main__":
 	args=docopt(__doc__, version='connectit-netcool-adapter 0.2')
-	daemon = ConnectitDaemon(args['--pidfile'], debug=args['--debug'])
+	daemon = ConnectitDaemon(args['--pidfile'], nofork=args['--nofork'], debuglevel=args['--level'])
 	if   args['start']:
 		daemon.start()
 	elif args['stop']:
