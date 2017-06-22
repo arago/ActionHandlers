@@ -3,51 +3,6 @@ import requests.exceptions, gevent, hashlib, sys, os, traceback
 from arago.pyconnectit.connectors.common.handlers.soap_handler import SOAPHandler
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty, Full
 
-class SyncNetcoolStatus(SOAPHandler):
-	def __init__(self, soap_interfaces_map, status_map_map={}):
-		super().__init__(soap_interfaces_map)
-		def add_status_map(soap_interface, status_map):
-			soap_interface.status_map=status_map
-			return soap_interface
-		self.soap_interfaces_map={
-			env:add_status_map(
-				soap_interface,
-				status_map_map[env])
-			for env, soap_interface
-			in soap_interfaces_map.items()}
-
-	def sync(self, env, event_id, status):
-		try:
-			self.soap_interfaces_map[env].netcool_service.runPolicy(
-				"get_from_hiro", {
-					'desc': "HIRORecieveUpdate",
-					'format': "String",
-					'label': "HIRO2NETCOOL",
-					'name': "HIRO2NETCOOL",
-					'value': "{event_id},{status_code}|".format(
-						event_id=event_id,
-						status_code=self.soap_interfaces_map[
-							env].status_map[status]
-					)
-				}, True)
-		except requests.exceptions.ConnectionError as e:
-			self.logger.error("SOAP call failed: " + str(e))
-		except requests.exceptions.InvalidURL as e:
-			self.logger.error("SOAP call failed: " + str(e))
-		except KeyError:
-			self.logger.warning(
-				"No SOAPHandler defined for environment: {env}".format(
-					env=env))
-
-	def __call__(self, data, env):
-		self.sync(
-			env,
-			data['mand']['eventId'],
-			data['free']['eventNormalizedStatus'])
-
-	def __str__(self):
-		return "SyncNetcoolStatus"
-
 class StatusUpdate(object):
 	def __init__(self, event_id, status):
 		self.event_id=event_id
@@ -77,7 +32,7 @@ class QueuingError(Exception):
 	def __init__(self, message):
 		Exception.__init__(self, message)
 
-class NetcoolBatchSyncer(SyncNetcoolStatus):
+class NetcoolBatchSyncer(SOAPHandler):
 	def __init__(
 			self,
 			soap_interfaces_map,
@@ -85,9 +40,16 @@ class NetcoolBatchSyncer(SyncNetcoolStatus):
 			queue_map={},
 			max_items_map={},
 			interval_map={}):
-		super().__init__(
-			soap_interfaces_map,
-			status_map_map=status_map_map)
+		super().__init__(soap_interfaces_map)
+		def add_status_map(soap_interface, status_map):
+			soap_interface.status_map=status_map
+			return soap_interface
+		self.soap_interfaces_map={
+			env:add_status_map(
+				soap_interface,
+				status_map_map[env])
+			for env, soap_interface
+			in soap_interfaces_map.items()}
 		self.queue_map=queue_map
 		self.background_jobs=[
 			gevent.spawn(
