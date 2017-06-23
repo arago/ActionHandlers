@@ -26,7 +26,6 @@ from arago.pyconnectit.connectors.common.trigger import FastTrigger
 from arago.pyconnectit.connectors.common.handlers.log_status_change import LogStatusChange
 from arago.pyconnectit.connectors.common.handlers.log_comments import LogComments
 from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import NetcoolBatchSyncer, SetStatus, ForwardStatus
-from arago.pyconnectit.connectors.snow.handlers.open_snow_ticket import BatchOpenSnowTicket
 from arago.pyconnectit.common.delta_store import DeltaStore
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue
 from arago.pyconnectit.common.rest.plugins.require_json import RequireJSON
@@ -119,38 +118,6 @@ class ConnectitDaemon(Daemon):
 		except OSError as e:
 			logger.critical("Can't create data directory: " + e)
 			sys.exit(5)
-		netcool_queue_map = {env:LMDBTaskQueue(
-			os.path.join(adapter_config['Queue']['data_dir'], env),
-			disksize = 1024 * 1024 * adapter_config.getint(
-				'Queue', 'max_size_in_mb', fallback=200))
-					 for env
-					 in environments_config.sections()}
-		snow_queue_map = {env:LMDBTaskQueue(
-			os.path.join(adapter_config['SnowQueue']['data_dir'], env),
-			disksize = 1024 * 1024 * adapter_config.getint(
-				'Queue', 'max_size_in_mb', fallback=200))
-					 for env
-					 in environments_config.sections()}
-		prefix = 'netcool_'
-		max_items_map = {
-			env:environments_config.getint(
-				env, prefix + 'sync_amount',
-				fallback=100)
-			for env in environments_config.sections()}
-		interval_map = {
-			env:environments_config.getint(
-				env, prefix + 'sync_interval_in_seconds',
-				fallback=60)
-			for env in environments_config.sections()}
-		status_map_map={
-			env:{status.replace(
-				prefix + 'status_', '', 1).capitalize():code
-				 for status, code
-				 in environments_config['DEFAULT'].items()
-				 if status.startswith('netcool_status_')}
-			for env
-			in environments_config.sections()
-		}
 
 		def setup_soapclient(env, prefix, verify=False):
 			plugins=[]
@@ -182,28 +149,33 @@ class ConnectitDaemon(Daemon):
 							environments_config[env][prefix + 'wsdl_file'])))
 				return soap_client
 
-		netcool_interfaces_map = {
-			env: setup_soapclient(env, 'netcool_')
-			for env in environments_config.sections()
-		}
-
-		snow_interfaces_map = {
-			env: setup_soapclient(env, 'snow_')
-			for env in environments_config.sections()
-		}
-
 		# Configure Triggers and Handlers
 
 		log_status_handler = LogStatusChange()
 		log_comment_handler = LogComments()
 
-		netcool_syncer = NetcoolBatchSyncer(
-			netcool_interfaces_map,
-			status_map_map=status_map_map,
-			queue_map=netcool_queue_map,
-			max_items_map=max_items_map,
-			interval_map=interval_map
-		)
+		netcool_queue_map = {env:LMDBTaskQueue(
+			os.path.join(adapter_config['Queue']['data_dir'], env),
+			disksize = 1024 * 1024 * adapter_config.getint(
+				'Queue', 'max_size_in_mb', fallback=200))
+					 for env
+					 in environments_config.sections()}
+
+		netcool_syncer = [NetcoolBatchSyncer(
+			env,
+			setup_soapclient(env, 'netcool_'),
+			status_map={
+				status.replace('netcool_' + 'status_', '', 1).capitalize():code
+				for status, code in environments_config[env].items()
+				if status.startswith('netcool_status_')},
+			queue=netcool_queue_map[env],
+			max_items=environments_config.getint(
+				env, 'netcool_' + 'sync_amount',
+				fallback=100),
+			interval=environments_config.getint(
+				env, 'netcool_' + 'sync_interval_in_seconds',
+				fallback=60)
+		) for env in environments_config.sections()]
 
 		forward_status_netcool_handler = ForwardStatus(
 			delta_store_map=delta_store_map,
@@ -228,12 +200,6 @@ class ConnectitDaemon(Daemon):
 			queue_map=netcool_queue_map
 		)
 
-		open_snow_ticket = BatchOpenSnowTicket(
-			snow_interfaces_map,
-			delta_store_map=delta_store_map,
-			queue_map=snow_queue_map
-		)
-
 		status_change_schema = open(os.path.join(share_dir, "schemas/event-status-change.json"))
 		comment_added_schema = open(os.path.join(share_dir, "schemas/event-comment-added.json"))
 		status_ejected_schema = open(os.path.join(share_dir, "schemas/event-status-ejected.json"))
@@ -243,7 +209,6 @@ class ConnectitDaemon(Daemon):
 
 		triggers= [
 			FastTrigger(status_change_schema, [log_status_handler, forward_status_netcool_handler]),
-			FastTrigger(status_ejected_schema, [open_snow_ticket]),
 			FastTrigger(comment_added_schema, [log_comment_handler]),
 			FastTrigger(issue_created_schema, [set_issue_created_status_netcool_handler]),
 			FastTrigger(resolved_external_schema, [set_resolved_external_status_netcool_handler]),
@@ -255,8 +220,6 @@ class ConnectitDaemon(Daemon):
 		events=Events(triggers, delta_store_map)
 		netcool_queue =Queue(netcool_queue_map)
 		netcool_queue_slot = QueueObj(netcool_queue_map)
-		snow_queue =Queue(snow_queue_map)
-		snow_queue_slot = QueueObj(snow_queue_map)
 		middleware = [
 			RestrictEnvironment(environments_config.sections()),
 			RequireJSON(),
@@ -280,8 +243,6 @@ class ConnectitDaemon(Daemon):
 		rest_api.add_route(baseurl.path + '/{env}/events/', events)
 		rest_api.add_route(baseurl.path + '/{env}/netcool-queue/', netcool_queue)
 		rest_api.add_route(baseurl.path + '/{env}/netcool-queue/{event_id}', netcool_queue_slot)
-		rest_api.add_route(baseurl.path + '/{env}/snow-queue/', snow_queue)
-		rest_api.add_route(baseurl.path + '/{env}/snow-queue/{event_id}', snow_queue_slot)
 
 		server = gevent.pywsgi.WSGIServer(
 			(baseurl.hostname, baseurl.port),
@@ -305,6 +266,8 @@ class ConnectitDaemon(Daemon):
 
 		logger.info("Starting REST service at {url}".format(
 			url=urlunparse(baseurl)))
+		for proc in netcool_syncer:
+			proc.start()
 		server.serve_forever()
 
 
