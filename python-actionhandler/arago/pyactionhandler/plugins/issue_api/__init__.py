@@ -1,12 +1,19 @@
 import zmq.green as zmq
-from arago.pyactionhandler.protobuf.CommonTypes_pb2 import StringMessage, StringResponse, StringOrErrorResponse
+from arago.pyactionhandler.protobuf.CommonTypes_pb2 import StringMessage, StringResponse, StringOrErrorResponse, BooleanMessage, GetAttributeRequest, SetAttributeRequest
 from arago.pyactionhandler.protobuf.IssueAPI_pb2 import IssueHistoryEntryMessage
 from arago.common.helper import encode_rpc_call
 from lxml import etree
 from gevent.lock import BoundedSemaphore
+import time
 
 
 class IssueNotFoundError(Exception):
+	pass
+class AttribNotFoundError(Exception):
+	pass
+class ResolveFailedError(Exception):
+	pass
+class SetAttributeFailedError(Exception):
 	pass
 
 class IssueAPI(object):
@@ -70,3 +77,63 @@ class IssueAPI(object):
 					break
 				history.append(resp)
 		return history
+
+	def add_issue_history_entry(self, iid, kiid, nodeid, element_message,
+								element_name="External",  timestamp=None, loglevel=2):
+		rpc_call = encode_rpc_call("IssueAPI_Service", "AddHistoryEntry", "5.4")
+		req = IssueHistoryEntryMessage()
+		req.timestamp = timestamp or int(time.time() * 1000)
+		req.ki_id = kiid
+		req.node_id = nodeid
+		req.element_name = element_name
+		req.element_message = element_message
+		req.log_level = loglevel
+		req.issueid = iid
+		with self._lock:
+			self.socket.send_multipart((b'sah', rpc_call, req.SerializeToString()))
+			id1, svc_call, payload = self.socket.recv_multipart()
+		resp = BooleanMessage()
+		resp.ParseFromString(payload)
+		return resp
+
+	def get_attribute(self, iid, attrib):
+		rpc_call = encode_rpc_call("IssueAPI_Service", "GetAttribute", "5.4")
+		req = GetAttributeRequest()
+		req.nodeid = iid
+		req.parentuid=""
+		req.attr = attrib
+		with self._lock:
+			self.socket.send_multipart((b'sah', rpc_call, req.SerializeToString()))
+			id1, svc_call, payload = self.socket.recv_multipart()
+		resp = StringResponse()
+		resp.ParseFromString(payload)
+		if not resp.success:
+			raise AttribNotFoundError()
+		return resp.value
+
+	def set_attribute(self, iid, attrib, value):
+		rpc_call = encode_rpc_call("IssueAPI_Service", "SetAttribute", "5.4")
+		req = SetAttributeRequest()
+		req.nodeid = iid
+		req.parentuid=""
+		req.attr = attrib
+		req.value = value
+		with self._lock:
+			self.socket.send_multipart((b'sah', rpc_call, req.SerializeToString()))
+			id1, svc_call, payload = self.socket.recv_multipart()
+		resp = BooleanMessage()
+		resp.ParseFromString(payload)
+		if not resp.value:
+			raise SetAttributeFailedError()
+
+	def resolve(self, iid):
+		rpc_call = encode_rpc_call("IssueAPI_Service", "Resolve", "5.4")
+		req = StringMessage()
+		req.value = iid
+		with self._lock:
+			self.socket.send_multipart((b'sah', rpc_call, req.SerializeToString()))
+			id1, svc_call, payload = self.socket.recv_multipart()
+		resp = StringResponse()
+		resp.ParseFromString(payload)
+		if not resp.success:
+			raise ResolveFailedError(resp.value)
