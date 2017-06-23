@@ -1,6 +1,6 @@
 import logging, zeep
 import requests.exceptions, gevent, hashlib, sys, os, traceback
-from arago.pyconnectit.connectors.common.handlers.soap_handler import SOAPHandler
+from arago.pyconnectit.connectors.common.handlers.base_handler import BaseHandler
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty, Full
 
 class StatusUpdate(object):
@@ -32,45 +32,28 @@ class QueuingError(Exception):
 	def __init__(self, message):
 		Exception.__init__(self, message)
 
-class NetcoolBatchSyncer(SOAPHandler):
-	def __init__(
-			self,
-			soap_interfaces_map,
-			status_map_map={},
-			queue_map={},
-			max_items_map={},
-			interval_map={}):
-		super().__init__(soap_interfaces_map)
-		def add_status_map(soap_interface, status_map):
-			soap_interface.status_map=status_map
-			return soap_interface
-		self.soap_interfaces_map={
-			env:add_status_map(
-				soap_interface,
-				status_map_map[env])
-			for env, soap_interface
-			in soap_interfaces_map.items()}
-		self.queue_map=queue_map
-		self.background_jobs=[
-			gevent.spawn(
-				self.sync, env,
-				interface,
-				max_items=max_items_map[env],
-				interval=interval_map[env])
-			for env, interface
-			in soap_interfaces_map.items()]
+class NetcoolBatchSyncer(BaseHandler):
+	def __init__(self, env, soap_interface, status_map, queue, max_items, interval):
+		super().__init__()
+		self.env=env
+		self.soap_interface=soap_interface
+		self.status_map=status_map
+		self.queue=queue
+		self.loop=gevent.Greenlet(self.sync, max_items, interval)
 
-	def calc_netcool_status(
-			self,
-			event_id,
-			event_status_history,
-			status_map):
-		last_status = event_status_history.pop()['value']
-		return (event_id, status_map[last_status])
+	def start(self):
+		self.loop.start()
 
-	def call_netcool(self, env, netcool_status_string):
+	def halt(self):
+		self.loop.kill()
+
+	def serve_forever(self):
+		self.loop.start()
+		self.loop.join()
+
+	def call_netcool(self, netcool_status_string):
 		job = gevent.spawn(
-			self.soap_interfaces_map[env].netcool_service.runPolicy,
+			self.soap_interface.netcool_service.runPolicy,
 			"get_from_hiro",
 			{
 				'desc': "HIRORecieveUpdate",
@@ -95,41 +78,34 @@ class NetcoolBatchSyncer(SOAPHandler):
 		except KeyError as e:
 			raise ResponseDecodeError(e)
 
-	def sync(self, env, soap_interface, max_items=100, interval=120):
+	def sync(self, max_items=100, interval=120):
 		self.logger.info("Started Netcool background synchronisation "
 						 "for {env}, interval is {sleep} seconds, "
 						 "forwarding max. {num} items at once.".format(
-							 env=env,
+							 env=self.env,
 							 sleep=interval,
 							 num=max_items))
 		gevent.sleep(interval)
 		while True:
 			try:
-				with self.queue_map[env].get(
+				with self.queue.get(
 					block=False, max_items=max_items
 				) as tasks:
-					event_status_list = [
-						self.calc_netcool_status(
-							status_update.event_id,
-							status_update.status['free']['eventNormalizedStatus'],
-							soap_interface.status_map
-						) for status_update in tasks if status_update
-					]
+					event_status_list = [(status_update.event_id, self.status_map[status_update.status['free']['eventNormalizedStatus'].pop()['value']]) for status_update in tasks if status_update]
 					netcool_status_list = [
 						event_id + ',' + status_code
 						for event_id, status_code in event_status_list
 					]
 					netcool_status_string = "|".join(netcool_status_list)
-					response = self.call_netcool(
-						env, netcool_status_string)
+					response = self.call_netcool(netcool_status_string)
 					self.raise_on_error(response)
 					self.logger.info(
 						"Forwarding updates to Netcool {env} "
 						"succeeded, forwarded {x} items:".format(
-							env=env, x=len(tasks)))
+							env=self.env, x=len(tasks)))
 			except Empty:
 				self.logger.verbose("No tasks in queue for {env}".format(
-					env=env))
+					env=self.env))
 			except (
 					requests.exceptions.ConnectionError,
 					requests.exceptions.InvalidURL,
@@ -141,7 +117,7 @@ class NetcoolBatchSyncer(SOAPHandler):
 			except KeyError:
 				self.logger.warning(
 					"No SOAPHandler defined for environment: "
-					"{env}".format(env=env))
+					"{env}".format(env=self.env))
 			except Exception as e:
 				self.logger.error(
 					"SOAP call failed with unknown error:\n"
@@ -149,8 +125,8 @@ class NetcoolBatchSyncer(SOAPHandler):
 			finally:
 				self.logger.trace(
 					"Current queue store status for {env}:\n{stats}".format(
-						env=env,
-						stats=self.queue_map[env].stats()))
+						env=self.env,
+						stats=self.queue.stats()))
 				gevent.sleep(interval)
 
 class ForwardStatus(object):
