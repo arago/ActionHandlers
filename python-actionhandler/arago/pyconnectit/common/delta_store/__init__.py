@@ -84,6 +84,29 @@ class DeltaStore(object):
 				txn.delete(eventId.encode('utf-8'), db=mtimes_db)
 				self.logger.debug("Deleting index entry")
 				txn.delete(eventId.encode('utf-8'), db=index_db)
+
+	def get_untouched(self, max_age):
+		untouched = []
+		with self.lmdb.begin() as txn:
+			mtimes_db = self.lmdb.open_db(
+				key=self.mtimes_name, txn=txn)
+			with txn.cursor(db=mtimes_db) as cursor:
+				if cursor.first():
+					for eventId, timestamp in cursor.iternext(
+							keys=True, values=True):
+						age = int(time.time() * 1000) - int.from_bytes(
+							timestamp,
+							byteorder=sys.byteorder,
+							signed=False)
+						eventId = eventId.decode('utf-8')
+						self.logger.debug(
+							("Event {ev} was last updated {s} "
+							 "milliseconds ago.").format(
+								 ev = eventId, s = age))
+						if age >= max_age * 1000:
+							untouched.append(self.get_merged(eventId))
+		return untouched
+
 	def cleanup(self, max_age):
 		with self.lmdb.begin() as txn:
 			mtimes_db = self.lmdb.open_db(
