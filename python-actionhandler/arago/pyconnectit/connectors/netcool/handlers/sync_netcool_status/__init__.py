@@ -124,10 +124,10 @@ class NetcoolBatchSyncer(BaseHandler):
 					"SOAP call failed with unknown error:\n"
 					+ traceback.format_exc())
 			finally:
-				self.logger.trace(
-					"Current queue store status for {env}:\n{stats}".format(
-						env=self.env,
-						stats=self.queue.stats()))
+				# self.logger.trace(
+				# 	"Current queue store status for {env}:\n{stats}".format(
+				# 		env=self.env,
+				# 		stats=self.queue.stats()))
 				gevent.sleep(interval)
 
 class ForwardStatus(object):
