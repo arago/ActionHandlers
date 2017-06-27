@@ -18,7 +18,7 @@ from configparser import NoSectionError, NoOptionError
 from arago.common.daemon import daemon as Daemon
 from arago.pyactionhandler.action import Action
 from arago.pyactionhandler.plugins.issue_api import IssueAPI
-import datetime
+import datetime, time
 
 import zeep, requests, ujson as json
 from lxml import etree
@@ -209,6 +209,14 @@ class SnowCreateIncidentAction(Action):
 			args['error_code']=self.event_message_key
 			result = service.snow_service.execute(**args)
 			if result.UBSstatus == 'success' and result.inc_number:
+				self.issue_api.add_issue_history_entry(
+					self.parameters['IID'],
+					self.parameters['KIID'],
+					self.node, "ServiceNow Handover with ClearEvent, Incident No: {tid}".format(tid=result.inc_number),
+					element_name="Handover",
+					loglevel=1,
+					timestamp=int((time.time()+1)*1000))
+				print(self.parameters)
 				self.success = True
 				self.output = result.inc_number
 				self.system_rc = 0
