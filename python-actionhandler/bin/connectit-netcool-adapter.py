@@ -25,6 +25,7 @@ from arago.pyconnectit.common.rest import Events, Queue, QueueObj
 from arago.pyconnectit.connectors.common.trigger import FastTrigger
 from arago.pyconnectit.connectors.common.handlers.log_status_change import LogStatusChange
 from arago.pyconnectit.connectors.common.handlers.log_comments import LogComments
+from arago.pyconnectit.connectors.common.handlers.watch_new import Watch, Unwatch
 from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import NetcoolBatchSyncer, SetStatus, ForwardStatus
 from arago.pyconnectit.common.delta_store import DeltaStore
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue
@@ -100,6 +101,7 @@ class ConnectitDaemon(Daemon):
 		# Configure DeltaStore
 		try:
 			os.makedirs(adapter_config['DeltaStore']['data_dir'], mode=0o700, exist_ok=True)
+			os.makedirs(adapter_config['Watchlist']['data_dir'], mode=0o700, exist_ok=True)
 		except OSError as e:
 			logger.critical("Can't create data directory: " + e)
 			sys.exit(5)
@@ -107,6 +109,13 @@ class ConnectitDaemon(Daemon):
 			env:DeltaStore(
 				db_path = os.path.join(adapter_config['DeltaStore']['data_dir'], env),
 				max_size = 1024 * 1024 * adapter_config.getint('DeltaStore', 'max_size_in_mb', fallback=1024),
+				schemafile = open(environments_config[env]['event_schema']))
+			for env in environments_config.sections()
+		}
+		watchlist_map= {
+			env:DeltaStore(
+				db_path = os.path.join(adapter_config['Watchlist']['data_dir'], env),
+				max_size = 1024 * 1024 * adapter_config.getint('Watchlist', 'max_size_in_mb', fallback=1024),
 				schemafile = open(environments_config[env]['event_schema']))
 			for env in environments_config.sections()
 		}
@@ -182,7 +191,14 @@ class ConnectitDaemon(Daemon):
 			queue_map=netcool_queue_map
 		)
 
+		new_event_schema = open(os.path.join(share_dir, "schemas/event-new.json"))
+		status_change_schema = open(os.path.join(share_dir, "schemas/event-status-change.json"))
+		comment_added_schema = open(os.path.join(share_dir, "schemas/event-comment-added.json"))
+		status_ejected_schema = open(os.path.join(share_dir, "schemas/event-status-ejected.json"))
+		issue_created_schema = open(os.path.join(share_dir, "schemas/event-comment-issue-created.json"))
 		handover_clear_schema = open(os.path.join(share_dir, "schemas/event-handover-clear.json"))
+		resolved_schema = open(os.path.join(share_dir, "schemas/event-resolved.json"))
+
 		set_issue_created_status_netcool_handler = SetStatus(
 			"Issue_created",
 			delta_store_map=delta_store_map,
@@ -202,19 +218,17 @@ class ConnectitDaemon(Daemon):
 			queue_map=netcool_queue_map
 		)
 
-		status_change_schema = open(os.path.join(share_dir, "schemas/event-status-change.json"))
-		comment_added_schema = open(os.path.join(share_dir, "schemas/event-comment-added.json"))
-		status_ejected_schema = open(os.path.join(share_dir, "schemas/event-status-ejected.json"))
-		issue_created_schema = open(os.path.join(share_dir, "schemas/event-comment-issue-created.json"))
 		resolved_external_schema = open(os.path.join(share_dir, "schemas/event-resolved-external.json"))
-		resolved_schema = open(os.path.join(share_dir, "schemas/event-resolved.json"))
+		watch_new_event = Watch(watchlist_map)
+		unwatch_event = Unwatch(watchlist_map)
 
 		triggers= [
+			FastTrigger(new_event_schema, [watch_new_event]),
 			FastTrigger(status_change_schema, [log_status_handler, forward_status_netcool_handler]),
 			FastTrigger(comment_added_schema, [log_comment_handler]),
-			FastTrigger(issue_created_schema, [set_issue_created_status_netcool_handler]),
 			FastTrigger(resolved_external_schema, [set_resolved_external_status_netcool_handler]),
-			FastTrigger(resolved_schema, [set_resolved_status_netcool_handler])
+			FastTrigger(issue_created_schema, [unwatch_event, set_issue_created_status_netcool_handler]),
+			FastTrigger(resolved_schema, [set_resolved_status_netcool_handler]),
 		]
 
 		# Setup HTTP server for REST API
