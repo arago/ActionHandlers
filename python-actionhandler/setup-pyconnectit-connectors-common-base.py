@@ -23,6 +23,8 @@ distutils.core.setup(
 			  'arago.pyconnectit.connectors.common.handlers.base_handler',
 			  'arago.pyconnectit.connectors.common.handlers.soap_handler',
 			  'arago.pyconnectit.connectors.common.handlers.log_comments',
-			  'arago.pyconnectit.connectors.common.handlers.log_status_change'
+			  'arago.pyconnectit.connectors.common.handlers.log_status_change',
+			  'arago.pyconnectit.connectors.common.handlers.watch_new',
+			  'arago.pyconnectit.connectors.common.no_issue_watcher'
 	]
 )

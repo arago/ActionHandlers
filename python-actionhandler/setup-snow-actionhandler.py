@@ -9,7 +9,7 @@ name = 'snow-actionhandler'
 
 distutils.core.setup(
 	name = name,
-	version = "0.4.1",
+	version = "0.5",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("ActionHandler for ServiceNow"),

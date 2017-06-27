@@ -7,7 +7,7 @@ import distutils.core
 
 distutils.core.setup(
 	name = "arago-pyconnectit-common-base",
-	version = "2.4",
+	version = "2.5",
 	author = "Marcus Klemm",
 	author_email = "mklemm@arago.de",
 	description = ("Common functions and classes for pyconnectit"),
