@@ -2,6 +2,7 @@ import gevent
 import logging, time
 from arago.pyconnectit.common.lmdb_queue import Empty, Full
 from arago.pyconnectit.connectors.netcool.handlers.sync_netcool_status import StatusUpdate
+from arago.pyconnectit.common.delta_store import KeyNotFoundError, DeltaStoreFull
 
 class NoIssueWatcher(object):
 	def __init__(self, watchlist, queue, env, interval=60, max_age=300):
@@ -42,6 +43,11 @@ class NoIssueWatcher(object):
 					self.watchlist.delete(event_id)
 			except Full:
 				raise QueuingError("Queue full")
+			except DeltaStoreFull as e:
+				self.logger.critical("Watchlist for {env} can't delete this event: {err}".format(
+					env=self.env, err=e))
+			except KeyNotFoundError as e:
+				self.logger.warn(e)
 			except KeyError as e:
 				self.logger.warn("No queue defined for {env}".format(
 					env=self.env))
