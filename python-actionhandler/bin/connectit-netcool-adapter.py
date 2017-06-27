@@ -23,6 +23,7 @@ from arago.common.logging.logger import Logger
 from arago.pyconnectit.common.rest import Events, Queue, QueueObj
 
 from arago.pyconnectit.connectors.common.trigger import FastTrigger
+from arago.pyconnectit.connectors.common.no_issue_watcher import NoIssueWatcher
 from arago.pyconnectit.connectors.common.handlers.log_status_change import LogStatusChange
 from arago.pyconnectit.connectors.common.handlers.log_comments import LogComments
 from arago.pyconnectit.connectors.common.handlers.watch_new import Watch, Unwatch
@@ -186,6 +187,8 @@ class ConnectitDaemon(Daemon):
 				fallback=60)
 		) for env in environments_config.sections()]
 
+		no_issue_watcher = [NoIssueWatcher(watchlist_map[env], netcool_queue_map[env], env, interval=environments_config.getint(env, 'watcher_interval', fallback=15), max_age=environments_config.getint(env, 'watcher_timeout', fallback=120)) for env in environments_config.sections()]
+
 		forward_status_netcool_handler = ForwardStatus(
 			delta_store_map=delta_store_map,
 			queue_map=netcool_queue_map
@@ -283,6 +286,8 @@ class ConnectitDaemon(Daemon):
 		logger.info("Starting REST service at {url}".format(
 			url=urlunparse(baseurl)))
 		for proc in netcool_syncer:
+			proc.start()
+		for proc in no_issue_watcher:
 			proc.start()
 		server.serve_forever()
 
