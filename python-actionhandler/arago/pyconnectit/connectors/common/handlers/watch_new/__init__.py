@@ -1,4 +1,5 @@
 from arago.pyconnectit.connectors.common.handlers.base_handler import BaseHandler
+from arago.pyconnectit.common.delta_store import KeyNotFoundError, DeltaStoreFull
 
 class Watch(BaseHandler):
 	def __init__(self, watchlist_map):
@@ -33,6 +34,8 @@ class Unwatch(BaseHandler):
 				ev=data['mand']['eventId']))
 		except DeltaStoreFull as e:
 			self.logger.critical("Watchlist for {env} can't delete this event: {err}".format(env=env, err=e))
+		except KeyNotFoundError as e:
+			self.logger.warn(e)
 		except KeyError:
 			self.logger.warning(
 				"No Watchlist defined for environment: {env}".format(

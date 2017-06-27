@@ -9,6 +9,10 @@ class DeltaStoreFull(Exception):
 	def __init__(self, message):
 		Exception.__init__(self, message)
 
+class KeyNotFoundError(Exception):
+	def __init__(self, message):
+		Exception.__init__(self, message)
+
 class DeltaStore(object):
 	def __init__(self, db_path, max_size, schemafile):
 		self.db_path=db_path
@@ -67,7 +71,10 @@ class DeltaStore(object):
 				self.logger.debug(("Removing Event {ev} from the "
 								   "database").format(ev=eventId))
 				with txn.cursor(db=index_db) as cursor:
-					cursor.set_key(eventId.encode('utf-8'))
+					if not cursor.set_key(eventId.encode('utf-8')):
+						raise KeyNotFoundError(
+							"Key {ev} not found in {path}".format(
+								ev=eventId, path=self.db_path))
 					self.logger.debug("Found {n} deltas".format(
 						n = cursor.count()))
 					for delta_key in cursor.iternext_dup(keys=False):
@@ -125,7 +132,10 @@ class DeltaStore(object):
 							 "milliseconds ago.").format(
 								 ev = eventId, s = age))
 						if age >= max_age * 1000:
-							self.delete(eventId)
+							try:
+								self.delete(eventId)
+							except KeyNotFoundError as e:
+								self.logger.warning(e)
 
 	def append(self, eventId, data):
 		try:
