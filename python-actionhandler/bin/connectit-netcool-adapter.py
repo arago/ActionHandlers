@@ -212,8 +212,6 @@ class ConnectitDaemon(Daemon):
 			end_state_schemas=[handover_clear_schema]
 		)
 
-		set_resolved_external_status_netcool_handler = SetStatus(
-			"Resolved_external",
 		set_handover_clear_status_netcool_handler = SetStatus(
 			"Handover_clear",
 			delta_store_map=delta_store_map,
@@ -228,7 +226,6 @@ class ConnectitDaemon(Daemon):
 			FastTrigger(new_event_schema, [watch_new_event]),
 			FastTrigger(status_change_schema, [log_status_handler, forward_status_netcool_handler]),
 			FastTrigger(comment_added_schema, [log_comment_handler]),
-			FastTrigger(resolved_external_schema, [set_resolved_external_status_netcool_handler]),
 			FastTrigger(issue_created_schema, [unwatch_event, set_issue_created_status_netcool_handler]),
 			FastTrigger(resolved_schema, [set_resolved_status_netcool_handler]),
 			FastTrigger(handover_clear_schema, [set_handover_clear_status_netcool_handler])
