@@ -221,7 +221,6 @@ class ConnectitDaemon(Daemon):
 			queue_map=netcool_queue_map
 		)
 
-		resolved_external_schema = open(os.path.join(share_dir, "schemas/event-resolved-external.json"))
 		watch_new_event = Watch(watchlist_map)
 		unwatch_event = Unwatch(watchlist_map)
 
