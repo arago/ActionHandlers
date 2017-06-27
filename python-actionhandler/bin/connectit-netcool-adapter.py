@@ -182,6 +182,7 @@ class ConnectitDaemon(Daemon):
 			queue_map=netcool_queue_map
 		)
 
+		handover_clear_schema = open(os.path.join(share_dir, "schemas/event-handover-clear.json"))
 		set_issue_created_status_netcool_handler = SetStatus(
 			"Issue_created",
 			delta_store_map=delta_store_map,
@@ -191,7 +192,8 @@ class ConnectitDaemon(Daemon):
 		set_resolved_status_netcool_handler = SetStatus(
 			"Resolved",
 			delta_store_map=delta_store_map,
-			queue_map=netcool_queue_map
+			queue_map=netcool_queue_map,
+			end_state_schemas=[handover_clear_schema]
 		)
 
 		set_resolved_external_status_netcool_handler = SetStatus(

@@ -12,6 +12,7 @@ class Trigger(object):
 			schema=os.path.basename(schemafile.name),
 			path=schemafile.name))
 		self.schemafile=schemafile
+		schemafile.seek(0)
 		self.schema = json.load(schemafile)
 		self.handlers = handlers
 

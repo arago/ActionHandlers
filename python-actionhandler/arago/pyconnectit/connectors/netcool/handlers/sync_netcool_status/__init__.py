@@ -2,6 +2,7 @@ import logging, zeep
 import requests.exceptions, gevent, hashlib, sys, os, traceback
 from arago.pyconnectit.connectors.common.handlers.base_handler import BaseHandler
 from arago.pyconnectit.common.lmdb_queue import LMDBTaskQueue, Empty, Full
+import fastjsonschema, time, ujson as json
 
 class StatusUpdate(object):
 	def __init__(self, event_id, status):
@@ -150,18 +151,41 @@ class ForwardStatus(object):
 	def __str__(self):
 		return "ForwardStatus"
 
+class EndStateReached(Exception):
+	pass
+
 class SetStatus(object):
-	def __init__(self, status, delta_store_map={}, queue_map={}):
+	def __init__(self, status, delta_store_map={}, queue_map={}, end_state_schemas=[]):
+		self.logger = logging.getLogger('root')
 		self.status=status
 		self.delta_store_map=delta_store_map
 		self.queue_map=queue_map
+		self.end_states=[fastjsonschema.compile(json.load(schemafile)) for schemafile in end_state_schemas]
+
+	def catch_endstates(self, event_id, event):
+		for end_state in self.end_states:
+			try:
+				end_state(event)
+				self.logger.verbose(
+					("Event {evt} has reached one of the defined end states, "
+					 "not forwarding any updates").format(evt=event_id))
+				raise EndStateReached()
+			except fastjsonschema.JsonSchemaException:
+				self.logger.debug(
+					("Event {evt} has not yet reached any one of the defined end states, "
+					 "forwarding updates").format(evt=event_id))
 
 	def __call__(self, data, env):
 		try:
 			event_id = data['mand']['eventId']
 			event = self.delta_store_map[env].get_merged(
 				event_id)
-			event['free']['eventNormalizedStatus'][-1]['value']=self.status
+			#event['free']['eventNormalizedStatus'][-1]['value']=self.status
+			try:
+				self.catch_endstates(event_id, event)
+			except EndStateReached:
+				return
+			event['free']['eventNormalizedStatus'].append({'value':self.status, 'timestamp':str(int(time.time() * 1000))})
 			status_update = StatusUpdate(event_id, event)
 			self.queue_map[env].put(status_update)
 		except Full:
