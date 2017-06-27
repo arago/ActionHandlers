@@ -214,6 +214,8 @@ class ConnectitDaemon(Daemon):
 
 		set_resolved_external_status_netcool_handler = SetStatus(
 			"Resolved_external",
+		set_handover_clear_status_netcool_handler = SetStatus(
+			"Handover_clear",
 			delta_store_map=delta_store_map,
 			queue_map=netcool_queue_map
 		)
@@ -229,6 +231,7 @@ class ConnectitDaemon(Daemon):
 			FastTrigger(resolved_external_schema, [set_resolved_external_status_netcool_handler]),
 			FastTrigger(issue_created_schema, [unwatch_event, set_issue_created_status_netcool_handler]),
 			FastTrigger(resolved_schema, [set_resolved_status_netcool_handler]),
+			FastTrigger(handover_clear_schema, [set_handover_clear_status_netcool_handler])
 		]
 
 		# Setup HTTP server for REST API
