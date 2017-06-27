@@ -195,4 +195,4 @@ class SetStatus(object):
 				env=env))
 
 	def __str__(self):
-		return "SetStatus"
+		return "SetStatus ({status})".format(status=self.status)
