@@ -92,7 +92,7 @@ class DeltaStore(object):
 				self.logger.debug("Deleting index entry")
 				txn.delete(eventId.encode('utf-8'), db=index_db)
 
-	def get_untouched(self, max_age):
+	def get_untouched(self, max_age, merged=True):
 		untouched = []
 		with self.lmdb.begin() as txn:
 			mtimes_db = self.lmdb.open_db(
@@ -111,31 +111,15 @@ class DeltaStore(object):
 							 "milliseconds ago.").format(
 								 ev = eventId, s = age))
 						if age >= max_age * 1000:
-							untouched.append(self.get_merged(eventId))
+							if merged:
+								untouched.append(self.get_merged(eventId))
+							else:
+								untouched.append(eventId)
 		return untouched
 
 	def cleanup(self, max_age):
-		with self.lmdb.begin() as txn:
-			mtimes_db = self.lmdb.open_db(
-				key=self.mtimes_name, txn=txn)
-			with txn.cursor(db=mtimes_db) as cursor:
-				if cursor.first():
-					for eventId, timestamp in cursor.iternext(
-							keys=True, values=True):
-						age = int(time.time() * 1000) - int.from_bytes(
-							timestamp,
-							byteorder=sys.byteorder,
-							signed=False)
-						eventId = eventId.decode('utf-8')
-						self.logger.debug(
-							("Event {ev} was last updated {s} "
-							 "milliseconds ago.").format(
-								 ev = eventId, s = age))
-						if age >= max_age * 1000:
-							try:
-								self.delete(eventId)
-							except KeyNotFoundError as e:
-								self.logger.warning(e)
+		for event_id in self.get_untouched(max_age, merged=False):
+			self.delete(event_id)
 
 	def append(self, eventId, data):
 		try:
