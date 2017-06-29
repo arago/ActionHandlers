@@ -35,7 +35,7 @@ class Unwatch(BaseHandler):
 		except DeltaStoreFull as e:
 			self.logger.critical("Watchlist for {env} can't delete this event: {err}".format(env=env, err=e))
 		except KeyNotFoundError as e:
-			self.logger.warn(e)
+			self.logger.debug(e)
 		except KeyError as e:
 			if e.args[0] == env:
 				self.logger.warning(
