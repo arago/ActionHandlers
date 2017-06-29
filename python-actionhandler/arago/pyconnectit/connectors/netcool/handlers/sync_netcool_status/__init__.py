@@ -92,7 +92,16 @@ class NetcoolBatchSyncer(BaseHandler):
 				with self.queue.get(
 					block=False, max_items=max_items
 				) as tasks:
-					event_status_list = [(status_update.event_id, self.status_map[status_update.status['free']['eventNormalizedStatus'].pop()['value']]) for status_update in tasks if status_update]
+					event_status_list = []
+					for status_update in tasks:
+						if status_update:
+							try:
+								status_string = status_update.status['free']['eventNormalizedStatus'].pop()['value']
+								status_code = self.status_map[status_string]
+								event_status_list.append((status_update.event_id, status_code))
+							except KeyError:
+								self.logger.warning("Unknown status: {status}, ignoring".format(
+									status=status_string))
 					netcool_status_list = [
 						event_id + ',' + status_code
 						for event_id, status_code in event_status_list
@@ -115,10 +124,15 @@ class NetcoolBatchSyncer(BaseHandler):
 					NetcoolProcessingError
 			) as e:
 				self.logger.error("SOAP call failed: " + str(e))
-			except KeyError:
-				self.logger.warning(
-					"No SOAPHandler defined for environment: "
-					"{env}".format(env=self.env))
+			except KeyError as e:
+				if e.args[0] == self.env:
+					self.logger.warning(
+						"No SOAPHandler defined for environment: "
+						"{env}".format(env=self.env))
+				else:
+					self.logger.error(
+						"Forwarding to Netcool failed with an unknown error:\n"
+						+ traceback.format_exc())
 			except Exception as e:
 				self.logger.error(
 					"SOAP call failed with unknown error:\n"
@@ -147,6 +161,9 @@ class ForwardStatus(object):
 		except KeyError:
 			self.logger.warn("No queue defined for {env}".format(
 				env=env))
+		except Exception:
+			self.logger.error("Forwarding status of event {ev} failed with unknown error:\n"
+							  + traceback.format_exc())
 
 	def __str__(self):
 		return "ForwardStatus"
@@ -185,7 +202,19 @@ class SetStatus(object):
 				self.catch_endstates(event_id, event)
 			except EndStateReached:
 				return
-			event['free']['eventNormalizedStatus'].append({'value':self.status, 'timestamp':str(int(time.time() * 1000))})
+			try:
+				event['free']['eventNormalizedStatus'].append({'value':self.status, 'timestamp':str(int(time.time() * 1000))})
+			except KeyError as e:
+				if e.args[0] == 'eventNormalizedStatus':
+					event['free']['eventNormalizedStatus'] = [
+						{'value':self.status,
+						 'timestamp':str(int(time.time() * 1000))}]
+				elif e.args[0] == 'free':
+					event['free'] = {'eventNormalizedStatus': [
+							{'value':self.status,
+							 'timestamp':str(int(time.time() * 1000))}]}
+				else:
+					raise
 			status_update = StatusUpdate(event_id, event)
 			self.queue_map[env].put(status_update)
 		except Full:
@@ -193,6 +222,9 @@ class SetStatus(object):
 		except KeyError:
 			self.logger.warn("No queue defined for {env}".format(
 				env=env))
+		except Exception:
+			self.logger.error("Setting status of event {ev} failed with unknown error:\n"
+							  + traceback.format_exc())
 
 	def __str__(self):
 		return "SetStatus ({status})".format(status=self.status)
