@@ -36,10 +36,15 @@ class Unwatch(BaseHandler):
 			self.logger.critical("Watchlist for {env} can't delete this event: {err}".format(env=env, err=e))
 		except KeyNotFoundError as e:
 			self.logger.warn(e)
-		except KeyError:
-			self.logger.warning(
-				"No Watchlist defined for environment: {env}".format(
-					env=env))
+		except KeyError as e:
+			if e.args[0] == env:
+				self.logger.warning(
+					"No Watchlist defined for environment: {env}".format(
+						env=env))
+			else:
+				self.logger.error(
+					"Removing event {ev} failed with an unknown error:\n".format(ev=data['mand']['eventId'])
+					+ traceback.format_exc())
 
 	def __str__(self):
 		return "Unwatch"
