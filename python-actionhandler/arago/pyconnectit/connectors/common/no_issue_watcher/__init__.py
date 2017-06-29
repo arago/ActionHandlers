@@ -37,7 +37,20 @@ class NoIssueWatcher(object):
 				for event in stale_events:
 					event_id = event['mand']['eventId']
 					self.logger.verbose("Event {ev} found to be stale".format(ev=event_id))
-					event['free']['eventNormalizedStatus'] = [{'value':'No_issue_created', 'timestamp':str(int(time.time() * 1000))}]
+					try:
+						event['free']['eventNormalizedStatus'].append({'value':'No_issue_created',
+																	   'timestamp':str(int(time.time() * 1000))})
+					except KeyError as e:
+						if e.args[0] == 'eventNormalizedStatus':
+							event['free']['eventNormalizedStatus'] = [
+								{'value': 'No_issue_created',
+								 'timestamp':str(int(time.time() * 1000))}]
+						elif e.args[0] == 'free':
+							event['free'] = {'eventNormalizedStatus': [
+									{'value': 'No_issue_created',
+									 'timestamp':str(int(time.time() * 1000))}]}
+						else:
+							raise
 					status_update = StatusUpdate(event_id, event)
 					self.queue.put(status_update)
 					self.watchlist.delete(event_id)
