@@ -4,7 +4,7 @@
 		"mand": {
 			"type":"object",
 			"properties": {
-				"eventId": {"type":"string"},
+				"eventId": {"type":"string", "pattern":"^[0-9]+[A-Z]+_COL[0-9]$"},
 				"eventName": {"type":"string"},
 				"instance": {"type":"string"},
 				"sourceId": {"type":"string"},
