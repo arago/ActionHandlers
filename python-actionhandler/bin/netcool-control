@@ -1,0 +1,4 @@
+#!/bin/bash
+scl enable hiro_integration bash <<EOF
+netcool-control.py $*
+EOF
