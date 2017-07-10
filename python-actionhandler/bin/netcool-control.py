@@ -5,6 +5,7 @@ Usage:
   netcool-control [options] (enable | disable) <environment>
 
 Options:
+  --user=USER     Username to include in SOAP call [default: {usr}]
   --level=LEVEL   loglevel [default: WARNING]
   --config=FILE   Path to config file [default: /opt/autopilot/connectit/conf/connectit-netcool-adapter-environments.conf]
 """
@@ -15,7 +16,7 @@ from configparser import ConfigParser
 from arago.common.logging.logger import Logger
 from arago.pyconnectit.protocols.soap.plugins.soap_logger import SOAPLogger
 
-args = docopt(__doc__, version='netcool-control 0.1')
+args = docopt(__doc__.format(usr=os.environ.get('USER')), version='netcool-control 0.1')
 
 environments_config_file = args['--config']
 share_dir = os.path.join(os.getenv('PYTHON_DATADIR'), 'connectit-netcool-adapter')
@@ -86,7 +87,7 @@ response = x.netcool_service.runPolicy(
 		'format': "String",
 		'label': "HIRO2NETCOOL",
 		'name': "HIRO2NETCOOL",
-		'value': "{target},{operation}".format(target=args['<environment>'], operation="enable" if args['enable'] else "disable")
+		'value': "{target},{operation},{usr}".format(target=args['<environment>'], operation="enable" if args['enable'] else "disable", usr=args['--user'])
 	},
 	True
 )
