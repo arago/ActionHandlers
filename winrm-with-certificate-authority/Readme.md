@@ -290,7 +290,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Mandatory: true
     - Name: Hostname
       Description: "host to execute command on"
-      Mandatory: true
+      Default: ${NodeName}
     - Name: Certificate
       Description: "path to the client certificate"
       Default: /opt/autopilot/conf/certs/autopilot.crt
@@ -307,7 +307,7 @@ Add the following to your `/opt/autopilot/conf/aae.yaml` in the GenericHandler s
       Mandatory: true
     - Name: Hostname
       Description: "host to execute command on"
-      Mandatory: true
+      Default: ${NodeName}
     - Name: Certificate
       Description: "path to the client certificate"
       Default: /opt/autopilot/conf/certs/autopilot.crt
