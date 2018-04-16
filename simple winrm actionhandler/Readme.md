@@ -1,3 +1,5 @@
+# This ActionHandler is deprecated and will not be supported, anymore. Please use [https://github.com/arago/hiro-winrm-actionhandler](https://github.com/arago/hiro-winrm-actionhandler).
+
 # Simple ActionHandler to execute commands on Windows machines using WinRM
 
 ## Important:
