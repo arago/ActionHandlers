@@ -1,3 +1,5 @@
+# This ActionHandler is deprecated and will not be supported, anymore. Please use [https://github.com/arago/hiro-winrm-actionhandler](https://github.com/arago/hiro-winrm-actionhandler).
+
 # WinRM ActionHandler with SSL encryption and Certificate Authentication
 
 ## Overview
